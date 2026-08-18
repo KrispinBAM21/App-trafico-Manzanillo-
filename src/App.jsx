@@ -38024,6 +38024,370 @@ function AdminTrafficMonitoring({ isAdmin = false, authUser = null }) {
   );
 }
 
+// ─── ADMIN: RUTAS PORTUARIAS INTELIGENTES ───────────────────────────────────
+const SMART_PORT_ROUTE_FUNCTION = "tomtom-port-route";
+const SMART_PORT_ROUTE_SIGNAL_RADIUS_M = 350;
+const SMART_PORT_ROUTE_INCIDENT_RADIUS_M = 450;
+
+const smartPortRouteMeters = (a, b) => {
+  if (!a || !b) return Infinity;
+  const lat1 = Number(a.lat) * Math.PI / 180;
+  const lat2 = Number(b.lat) * Math.PI / 180;
+  const dLat = (Number(b.lat) - Number(a.lat)) * Math.PI / 180;
+  const dLng = (Number(b.lng) - Number(a.lng)) * Math.PI / 180;
+  if (![lat1, lat2, dLat, dLng].every(Number.isFinite)) return Infinity;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+  return 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+
+const smartPortRouteDistanceToSegment = (point, a, b) => {
+  if (!point || !a || !b) return Infinity;
+  const refLat = Number(point.lat) * Math.PI / 180;
+  const mLat = 111320;
+  const mLng = Math.max(1, 111320 * Math.cos(refLat));
+  const ax = (Number(a.lng) - Number(point.lng)) * mLng;
+  const ay = (Number(a.lat) - Number(point.lat)) * mLat;
+  const bx = (Number(b.lng) - Number(point.lng)) * mLng;
+  const by = (Number(b.lat) - Number(point.lat)) * mLat;
+  if (![ax, ay, bx, by].every(Number.isFinite)) return Infinity;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const denom = dx * dx + dy * dy;
+  const t = denom > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / denom)) : 0;
+  return Math.hypot(ax + dx * t, ay + dy * t);
+};
+
+const smartPortRouteDistanceToPath = (point, path = []) => {
+  if (!point || !Array.isArray(path) || path.length < 2) return Infinity;
+  let best = Infinity;
+  for (let index = 1; index < path.length; index += 1) {
+    const distance = smartPortRouteDistanceToSegment(point, path[index - 1], path[index]);
+    if (distance < best) best = distance;
+  }
+  return best;
+};
+
+const smartPortRouteDuration = (seconds) => {
+  const total = Math.max(0, Math.round(Number(seconds || 0) / 60));
+  if (total < 60) return `${total} min`;
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  return `${hours} h ${minutes ? `${minutes} min` : ""}`.trim();
+};
+
+const smartPortRouteDistance = (meters) => {
+  const value = Math.max(0, Number(meters || 0));
+  return value >= 1000 ? `${(value / 1000).toFixed(1)} km` : `${Math.round(value)} m`;
+};
+
+const smartPortRouteDelayColor = (seconds) => {
+  const minutes = Math.max(0, Number(seconds || 0) / 60);
+  if (minutes >= 15) return "#ef4444";
+  if (minutes >= 8) return "#f97316";
+  if (minutes >= 3) return "#fbbf24";
+  return "#22c55e";
+};
+
+const smartPortRouteTrafficSectionColor = (section) => {
+  const magnitude = Number(section?.magnitudeOfDelay);
+  const delay = Number(section?.delayInSeconds || 0);
+  if (magnitude >= 4 || delay >= 600) return "#ef4444";
+  if (magnitude >= 3 || delay >= 300) return "#f97316";
+  if (magnitude >= 2 || delay >= 120) return "#fbbf24";
+  return "#22c55e";
+};
+
+const smartPortRouteStatusWeight = (type, status) => {
+  const value = String(status || "").trim().toLowerCase();
+  if (type === "terminal") return ["llena", "lleno"].includes(value) ? 6 : 0;
+  if (value === "cerrado") return 10;
+  if (value === "detenido") return 8;
+  if (value === "saturado") return 6;
+  if (["lento", "moderado"].includes(value)) return 3;
+  return 0;
+};
+
+const smartPortRouteMarker = (icon, color) => L.divIcon({
+  className:"cm-smart-route-marker-host",
+  html:`<span class="cm-smart-route-marker" style="--sr-color:${String(color || "#38bdf8")}"><span class="material-symbols-outlined">${String(icon || "location_on")}</span></span>`,
+  iconSize:[34,34],
+  iconAnchor:[17,30],
+  popupAnchor:[0,-28],
+});
+
+function SmartPortRouteViewport({ route }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!route?.points?.length) return;
+    const bounds = L.latLngBounds(route.points.map(point => [point.lat, point.lng]));
+    if (bounds.isValid()) map.fitBounds(bounds.pad(.16), { maxZoom:17, animate:true });
+  }, [map, route?.id, route?.points]);
+  return null;
+}
+
+function AdminSmartPortRoutes({ isAdmin = false, authUser = null, incidents = [] }) {
+  const [originId, setOriginId] = useState("ref_patio");
+  const [destinationId, setDestinationId] = useState("ref_contecon");
+  const [travelMode, setTravelMode] = useState("truck");
+  const [maxAlternatives, setMaxAlternatives] = useState(2);
+  const [vehicle, setVehicle] = useState({ weightKg:"", axleWeightKg:"", numberOfAxles:"", lengthM:"", widthM:"", heightM:"", maxSpeedKmh:"" });
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+  const [selectedRouteId, setSelectedRouteId] = useState("");
+  const [accessRows, setAccessRows] = useState({});
+  const [terminalRows, setTerminalRows] = useState({});
+  const [segundoData, setSegundoData] = useState({});
+
+  const points = useMemo(() => RUTA_FISCAL_REFERENCIAS.map(ref => ({
+    id:ref.id,
+    label:ref.name,
+    short:ref.short || ref.name,
+    type:ref.tipo,
+    lat:Number(ref.coords?.[0]),
+    lng:Number(ref.coords?.[1]),
+  })).filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng)), []);
+
+  const pointById = useMemo(() => Object.fromEntries(points.map(point => [point.id, point])), [points]);
+
+  const loadOperational = useCallback(async () => {
+    if (!isAdmin) return;
+    const [accessResult, terminalResult, segundoResult] = await Promise.all([
+      sb.from("accesos").select("id,status,last_update,updated_by"),
+      sb.from("terminals").select("id,status,last_update,updated_by"),
+      sb.from("carriles").select("id,data").eq("id", "segundo_acceso").maybeSingle(),
+    ]);
+    if (accessResult.error) throw accessResult.error;
+    if (terminalResult.error) throw terminalResult.error;
+    if (segundoResult.error) throw segundoResult.error;
+    setAccessRows(Object.fromEntries((accessResult.data || []).map(row => [row.id, row])));
+    setTerminalRows(Object.fromEntries((terminalResult.data || []).map(row => [row.id, row])));
+    setSegundoData(segundoResult.data?.data && typeof segundoResult.data.data === "object" ? segundoResult.data.data : {});
+  }, [isAdmin]);
+
+  useEffect(() => {
+    loadOperational().catch(err => setError(err?.message || "No se pudo cargar el estado operativo."));
+    if (!isAdmin) return undefined;
+    const channel = sb.channel(`admin-smart-routes-${authUser?.id || "admin"}`)
+      .on("postgres_changes", { event:"*", schema:"public", table:"accesos" }, payload => {
+        const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+        if (!row?.id) return;
+        setAccessRows(prev => {
+          const next = { ...prev };
+          if (payload.eventType === "DELETE") delete next[row.id]; else next[row.id] = row;
+          return next;
+        });
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:"terminals" }, payload => {
+        const row = payload.eventType === "DELETE" ? payload.old : payload.new;
+        if (!row?.id) return;
+        setTerminalRows(prev => {
+          const next = { ...prev };
+          if (payload.eventType === "DELETE") delete next[row.id]; else next[row.id] = row;
+          return next;
+        });
+      })
+      .on("postgres_changes", { event:"*", schema:"public", table:"carriles", filter:"id=eq.segundo_acceso" }, payload => {
+        setSegundoData(payload.eventType === "DELETE" ? {} : (payload.new?.data || {}));
+      })
+      .subscribe();
+    return () => { sb.removeChannel(channel); };
+  }, [isAdmin, authUser?.id, loadOperational]);
+
+  const resolvePoint = useCallback(async (id) => {
+    if (id !== "current") return pointById[id] || null;
+    if (currentLocation) return currentLocation;
+    if (!navigator?.geolocation) throw new Error("Este dispositivo no permite obtener ubicación GPS.");
+    setLocating(true);
+    try {
+      const coords = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(
+        position => resolve({ lat:position.coords.latitude, lng:position.coords.longitude, label:"Mi ubicación", short:"Mi ubicación", type:"gps", accuracy:position.coords.accuracy }),
+        err => reject(new Error(err?.message || "No fue posible obtener la ubicación actual.")),
+        { enableHighAccuracy:true, timeout:12000, maximumAge:15000 },
+      ));
+      setCurrentLocation(coords);
+      return coords;
+    } finally {
+      setLocating(false);
+    }
+  }, [pointById, currentLocation]);
+
+  const fixedSignals = useMemo(() => points.map(point => {
+    if (point.type === "acceso") {
+      const id = MASTER_REFERENCE_TO_ACCESO_ID[point.id];
+      const row = accessRows[id] || {};
+      return { ...point, entityId:id, status:row.status || "sin_datos", weight:smartPortRouteStatusWeight("acceso", row.status) };
+    }
+    const id = MASTER_REFERENCE_TO_TERMINAL_ID[point.id];
+    const row = terminalRows[id] || {};
+    return { ...point, entityId:id, status:row.status || "sin_datos", weight:smartPortRouteStatusWeight("terminal", row.status) };
+  }), [points, accessRows, terminalRows]);
+
+  const activeIncidents = useMemo(() => (Array.isArray(incidents) ? incidents : []).filter(item => item?.visible && !item?.resolved && Number.isFinite(Number(item?.coords?.lat)) && Number.isFinite(Number(item?.coords?.lng))), [incidents]);
+
+  const scoredRoutes = useMemo(() => {
+    const routes = Array.isArray(result?.routes) ? result.routes : [];
+    return routes.map(route => {
+      const path = Array.isArray(route.points) ? route.points : [];
+      const nearbySignals = fixedSignals
+        .map(signal => ({ ...signal, distanceMeters:smartPortRouteDistanceToPath(signal, path) }))
+        .filter(signal => signal.distanceMeters <= SMART_PORT_ROUTE_SIGNAL_RADIUS_M && signal.weight > 0);
+      const nearbyIncidents = activeIncidents
+        .map(incident => ({ ...incident, distanceMeters:smartPortRouteDistanceToPath({ lat:Number(incident.coords.lat), lng:Number(incident.coords.lng) }, path) }))
+        .filter(incident => incident.distanceMeters <= SMART_PORT_ROUTE_INCIDENT_RADIUS_M);
+      const operationalWeight = nearbySignals.reduce((total, signal) => total + Number(signal.weight || 0), 0);
+      const incidentWeight = nearbyIncidents.reduce((total, incident) => total + (/accidente/i.test(String(incident.type || "")) ? 5 : 3), 0);
+      const duration = Number(route?.summary?.travelTimeInSeconds || 0);
+      const scoreSeconds = duration + operationalWeight * 75 + incidentWeight * 90;
+      return { ...route, nearbySignals, nearbyIncidents, operationalWeight, incidentWeight, scoreSeconds };
+    });
+  }, [result, fixedSignals, activeIncidents]);
+
+  const recommendedRoute = useMemo(() => scoredRoutes.length ? [...scoredRoutes].sort((a, b) => a.scoreSeconds - b.scoreSeconds)[0] : null, [scoredRoutes]);
+  const selectedRoute = useMemo(() => scoredRoutes.find(route => route.id === selectedRouteId) || recommendedRoute || scoredRoutes[0] || null, [scoredRoutes, selectedRouteId, recommendedRoute]);
+
+  useEffect(() => {
+    if (!scoredRoutes.length) return;
+    if (selectedRouteId && scoredRoutes.some(route => route.id === selectedRouteId)) return;
+    setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
+  }, [scoredRoutes, selectedRouteId, recommendedRoute]);
+
+  const calculate = async () => {
+    if (!isAdmin || busy) return;
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try {
+      const sessionResult = await sb.auth.getSession();
+      const session = sessionResult.data?.session || null;
+      if (sessionResult.error || !session?.user?.id || !hasAdminRole(session.user)) {
+        throw new Error("Vincula una sesión Supabase con rol admin antes de calcular rutas.");
+      }
+      const origin = await resolvePoint(originId);
+      const destination = await resolvePoint(destinationId);
+      if (!origin || !destination) throw new Error("Selecciona un origen y destino válidos.");
+      if (smartPortRouteMeters(origin, destination) < 30) throw new Error("El origen y el destino son demasiado cercanos para calcular una ruta útil.");
+
+      const numberOrZero = value => {
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+      };
+      const body = {
+        trigger:"admin_smart_route",
+        origin:{ lat:Number(origin.lat), lng:Number(origin.lng), label:origin.label || origin.short || originId },
+        destination:{ lat:Number(destination.lat), lng:Number(destination.lng), label:destination.label || destination.short || destinationId },
+        travelMode,
+        maxAlternatives:Number(maxAlternatives || 0),
+        vehicle: travelMode === "truck" ? {
+          weightKg:numberOrZero(vehicle.weightKg),
+          axleWeightKg:numberOrZero(vehicle.axleWeightKg),
+          numberOfAxles:numberOrZero(vehicle.numberOfAxles),
+          lengthM:numberOrZero(vehicle.lengthM),
+          widthM:numberOrZero(vehicle.widthM),
+          heightM:numberOrZero(vehicle.heightM),
+          maxSpeedKmh:numberOrZero(vehicle.maxSpeedKmh),
+        } : {},
+      };
+      const invokeResult = await sb.functions.invoke(SMART_PORT_ROUTE_FUNCTION, { body });
+      if (invokeResult.error) throw invokeResult.error;
+      if (!invokeResult.data?.ok) throw new Error(invokeResult.data?.error || "TomTom no pudo calcular la ruta.");
+      setResult(invokeResult.data);
+    } catch (err) {
+      setError(err?.message || "No fue posible calcular la ruta portuaria.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const swap = () => {
+    if (originId === "current") return;
+    setOriginId(destinationId);
+    setDestinationId(originId);
+    setResult(null);
+  };
+
+  if (!isAdmin) return null;
+
+  return (
+    <div className="spr-shell">
+      <style>{`
+        .spr-shell{font-family:'DM Sans',sans-serif;color:#eaf3ff;display:grid;gap:16px}.spr-shell *{box-sizing:border-box}.spr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}.spr-kicker{font:900 10px/1.2 'Space Mono',monospace;letter-spacing:.15em;color:#67e8f9;text-transform:uppercase}.spr-head h2{margin:7px 0 5px;font:900 clamp(22px,3vw,32px)/1.08 'Space Mono',monospace}.spr-head p{margin:0;max-width:800px;color:#91a4bd;font-size:12px;line-height:1.55}.spr-badge{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 11px;border-radius:999px;border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.07);color:#8edcff;font:900 9px/1 'Space Mono',monospace}.spr-card{border:1px solid rgba(148,163,184,.16);border-radius:17px;background:linear-gradient(160deg,rgba(13,27,48,.88),rgba(6,16,31,.94));box-shadow:0 20px 54px rgba(0,0,0,.22);overflow:hidden}.spr-form{padding:15px;display:grid;gap:13px}.spr-route-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:end}.spr-field{display:grid;gap:6px}.spr-field span{font-size:9px;color:#8195ad;text-transform:uppercase;font-weight:900;letter-spacing:.07em}.spr-field select,.spr-field input{width:100%;min-height:42px;border:1px solid rgba(148,163,184,.18);border-radius:10px;background:#08182a;color:#eaf3ff;padding:9px 10px;font:800 11px/1 'DM Sans',sans-serif;outline:none}.spr-field select:focus,.spr-field input:focus{border-color:rgba(56,189,248,.6);box-shadow:0 0 0 3px rgba(56,189,248,.08)}.spr-swap,.spr-btn{min-height:42px;border-radius:10px;border:1px solid rgba(56,189,248,.28);background:rgba(56,189,248,.08);color:#9edfff;display:inline-flex;align-items:center;justify-content:center;gap:7px;font:900 10px/1 'DM Sans',sans-serif;cursor:pointer}.spr-swap{width:44px;padding:0}.spr-btn{padding:0 15px}.spr-btn.is-primary{background:linear-gradient(135deg,#18c7ba,#0c8cba);border-color:#54e7dc;color:#031719}.spr-btn:disabled{opacity:.48;cursor:wait}.spr-mode{display:flex;gap:8px;flex-wrap:wrap}.spr-mode button{min-height:38px;padding:0 12px;border-radius:9px;border:1px solid rgba(148,163,184,.16);background:rgba(2,8,23,.32);color:#8195ad;font-weight:900;cursor:pointer}.spr-mode button.is-active{border-color:rgba(56,189,248,.45);background:rgba(56,189,248,.12);color:#8edcff}.spr-vehicle{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:9px}.spr-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.spr-hint{font-size:9px;color:#70849c;line-height:1.5;max-width:700px}.spr-error{padding:11px 12px;border-radius:10px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#fca5a5;font-size:10px;font-weight:800}.spr-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.75fr);gap:16px;align-items:start}.spr-map{height:560px;width:100%;background:#06111f}.spr-map .leaflet-tile-pane{filter:invert(.9) hue-rotate(178deg) brightness(.62) saturate(.72) contrast(1.12)}.spr-map .leaflet-control-zoom a{background:rgba(5,16,30,.92)!important;color:#dcecff!important;border-color:rgba(148,163,184,.18)!important}.cm-smart-route-marker-host{background:transparent!important;border:0!important}.cm-smart-route-marker{width:34px;height:34px;display:grid;place-items:center;border-radius:999px;background:rgba(3,10,20,.94);border:2px solid var(--sr-color);color:var(--sr-color);box-shadow:0 0 0 3px rgba(3,10,20,.82),0 0 18px var(--sr-color)}.cm-smart-route-marker .material-symbols-outlined{font-size:18px;line-height:1}.spr-side{display:grid;gap:12px}.spr-summary{padding:14px}.spr-summary h3,.spr-route-list h3{margin:0 0 11px;font:900 12px/1.3 'Space Mono',monospace}.spr-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.spr-kpi{padding:11px;border-radius:11px;border:1px solid rgba(148,163,184,.11);background:rgba(2,8,23,.34)}.spr-kpi span{display:block;color:#7e92aa;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.spr-kpi strong{display:block;margin-top:6px;font:900 17px/1 'Space Mono',monospace}.spr-route-list{padding:14px}.spr-route-option{width:100%;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:11px 0;border:0;border-top:1px solid rgba(148,163,184,.1);background:transparent;color:#dce8f6;text-align:left;cursor:pointer}.spr-route-option:first-of-type{border-top:0}.spr-route-line{width:5px;height:38px;border-radius:99px;background:var(--route-color)}.spr-route-option strong{display:block;font-size:11px}.spr-route-option small{display:block;margin-top:4px;color:#7f93aa;font-size:9px}.spr-route-option b{font:900 11px/1 'Space Mono',monospace}.spr-route-option.is-active{background:rgba(56,189,248,.045)}.spr-recommended{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:3px 5px;border-radius:999px;background:rgba(34,197,94,.1);color:#86efac;font-size:7px;font-weight:900}.spr-signals{padding:14px;display:grid;gap:7px}.spr-signal{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 9px;border-radius:9px;background:rgba(2,8,23,.3);border:1px solid rgba(148,163,184,.09)}.spr-signal strong{font-size:9px}.spr-signal small{display:block;margin-top:3px;color:#778ba3;font-size:8px}.spr-signal b{font-size:8px;color:#fbbf24}.spr-empty{padding:24px;color:#71859d;text-align:center;font-size:10px}.spr-source{padding:9px 12px;border-top:1px solid rgba(148,163,184,.09);color:#647991;font-size:8px;line-height:1.5}.spr-loading{display:inline-flex;align-items:center;gap:7px}.spr-spin{width:14px;height:14px;border:2px solid rgba(142,220,255,.25);border-top-color:#8edcff;border-radius:999px;animation:sprSpin .8s linear infinite}@keyframes sprSpin{to{transform:rotate(360deg)}}
+        @media(max-width:980px){.spr-layout{grid-template-columns:1fr}.spr-map{height:480px}}@media(max-width:720px){.spr-route-row{grid-template-columns:1fr}.spr-swap{width:100%}.spr-vehicle{grid-template-columns:repeat(2,minmax(0,1fr))}.spr-map{height:420px}}@media(max-width:480px){.spr-vehicle{grid-template-columns:1fr}.spr-kpis{grid-template-columns:1fr}}
+      `}</style>
+
+      <header className="spr-head">
+        <div><div className="spr-kicker">CCTT · laboratorio de ruteo</div><h2>Rutas Portuarias Inteligentes</h2><p>Prueba de solo lectura con TomTom Routing: ETA con tráfico, alternativas y perfil de tractocamión. No modifica estados operativos ni votos.</p></div>
+        <span className="spr-badge"><MS name="route" size={17} active /> ADMIN LAB</span>
+      </header>
+
+      <section className="spr-card spr-form">
+        <div className="spr-route-row">
+          <label className="spr-field"><span>Origen</span><select value={originId} onChange={e => { setOriginId(e.target.value); setResult(null); }}><option value="current">Mi ubicación GPS</option><optgroup label="Accesos">{points.filter(p => p.type === "acceso").map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</optgroup><optgroup label="Terminales">{points.filter(p => p.type === "terminal").map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</optgroup></select></label>
+          <button type="button" className="spr-swap" onClick={swap} title="Intercambiar origen y destino"><MS name="swap_horiz" size={20} /></button>
+          <label className="spr-field"><span>Destino</span><select value={destinationId} onChange={e => { setDestinationId(e.target.value); setResult(null); }}><optgroup label="Terminales">{points.filter(p => p.type === "terminal").map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</optgroup><optgroup label="Accesos">{points.filter(p => p.type === "acceso").map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</optgroup></select></label>
+        </div>
+
+        <div className="spr-actions">
+          <div className="spr-mode"><button type="button" className={travelMode === "truck" ? "is-active" : ""} onClick={() => { setTravelMode("truck"); setResult(null); }}><MS name="local_shipping" size={18} /> Tractocamión</button><button type="button" className={travelMode === "car" ? "is-active" : ""} onClick={() => { setTravelMode("car"); setResult(null); }}><MS name="directions_car" size={18} /> Automóvil</button></div>
+          <label className="spr-field" style={{minWidth:170}}><span>Alternativas TomTom</span><select value={maxAlternatives} onChange={e => setMaxAlternatives(Number(e.target.value))}><option value={0}>Solo principal</option><option value={1}>1 alternativa</option><option value={2}>2 alternativas</option></select></label>
+        </div>
+
+        {travelMode === "truck" && <div className="spr-vehicle">
+          <label className="spr-field"><span>Peso total kg</span><input type="number" min="0" placeholder="Opcional" value={vehicle.weightKg} onChange={e => setVehicle(prev => ({...prev,weightKg:e.target.value}))} /></label>
+          <label className="spr-field"><span>Peso por eje kg</span><input type="number" min="0" placeholder="Opcional" value={vehicle.axleWeightKg} onChange={e => setVehicle(prev => ({...prev,axleWeightKg:e.target.value}))} /></label>
+          <label className="spr-field"><span>Número de ejes</span><input type="number" min="0" step="1" placeholder="Opcional" value={vehicle.numberOfAxles} onChange={e => setVehicle(prev => ({...prev,numberOfAxles:e.target.value}))} /></label>
+          <label className="spr-field"><span>Velocidad máx. km/h</span><input type="number" min="0" max="250" placeholder="Opcional" value={vehicle.maxSpeedKmh} onChange={e => setVehicle(prev => ({...prev,maxSpeedKmh:e.target.value}))} /></label>
+          <label className="spr-field"><span>Largo m</span><input type="number" min="0" step="0.01" placeholder="Opcional" value={vehicle.lengthM} onChange={e => setVehicle(prev => ({...prev,lengthM:e.target.value}))} /></label>
+          <label className="spr-field"><span>Ancho m</span><input type="number" min="0" step="0.01" placeholder="Opcional" value={vehicle.widthM} onChange={e => setVehicle(prev => ({...prev,widthM:e.target.value}))} /></label>
+          <label className="spr-field"><span>Alto m</span><input type="number" min="0" step="0.01" placeholder="Opcional" value={vehicle.heightM} onChange={e => setVehicle(prev => ({...prev,heightM:e.target.value}))} /></label>
+        </div>}
+
+        <div className="spr-actions"><div className="spr-hint">Los campos del vehículo vacíos se omiten. El score logístico mostrado en este laboratorio combina el tiempo TomTom con señales operativas cercanas e incidentes activos; no reemplaza la decisión del CCTT.</div><button type="button" className="spr-btn is-primary" disabled={busy || locating} onClick={calculate}>{busy || locating ? <span className="spr-loading"><span className="spr-spin" />{locating ? "Obteniendo GPS" : "Calculando"}</span> : <><MS name="route" size={19} active /> Calcular ruta</>}</button></div>
+        {error && <div className="spr-error">{error}</div>}
+      </section>
+
+      {scoredRoutes.length ? <div className="spr-layout">
+        <section className="spr-card">
+          <MapContainer className="spr-map" center={[19.075,-104.297]} zoom={13} minZoom={10} maxZoom={19} scrollWheelZoom attributionControl>
+            <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            {scoredRoutes.map((route, index) => {
+              const active = selectedRoute?.id === route.id;
+              const color = active ? "#67e8f9" : ["#8b5cf6","#f59e0b","#94a3b8"][index % 3];
+              return <Polyline key={route.id} positions={route.points.map(point => [point.lat, point.lng])} pathOptions={{color,weight:active?7:4,opacity:active ? .92 : .42,lineCap:"round",lineJoin:"round"}} eventHandlers={{click:() => setSelectedRouteId(route.id)}}><Tooltip sticky>{route.label} · {smartPortRouteDuration(route.summary?.travelTimeInSeconds)}</Tooltip></Polyline>;
+            })}
+            {selectedRoute?.sections?.filter(section => section.sectionType === "TRAFFIC").map((section, index) => {
+              const start = Math.max(0, Number(section.startPointIndex || 0));
+              const end = Math.min(selectedRoute.points.length - 1, Number(section.endPointIndex || start));
+              const segment = selectedRoute.points.slice(start, Math.max(start + 2, end + 1));
+              if (segment.length < 2) return null;
+              return <Polyline key={`traffic-${index}`} positions={segment.map(point => [point.lat, point.lng])} pathOptions={{color:smartPortRouteTrafficSectionColor(section),weight:10,opacity:.82,lineCap:"round"}}><Tooltip sticky>{section.simpleCategory || "Tráfico"} · {smartPortRouteDuration(section.delayInSeconds || 0)} de demora</Tooltip></Polyline>;
+            })}
+            {result?.origin && <Marker position={[result.origin.lat,result.origin.lng]} icon={smartPortRouteMarker("trip_origin","#22c55e")}><Popup><b>{result.origin.label || "Origen"}</b></Popup></Marker>}
+            {result?.destination && <Marker position={[result.destination.lat,result.destination.lng]} icon={smartPortRouteMarker("flag","#38bdf8")}><Popup><b>{result.destination.label || "Destino"}</b></Popup></Marker>}
+            {selectedRoute?.nearbySignals?.map(signal => <Marker key={`sig-${signal.id}`} position={[signal.lat,signal.lng]} icon={smartPortRouteMarker(signal.type === "terminal" ? "warehouse" : "door_front",trafficMonitorStatusColor(signal.status))}><Popup><b>{signal.label}</b><br />Estado: {String(signal.status || "sin datos").replaceAll("_"," ")}<br />A {Math.round(signal.distanceMeters)} m de la ruta</Popup></Marker>)}
+            {selectedRoute?.nearbyIncidents?.map((incident,index) => <Marker key={`inc-${incident.id || index}`} position={[Number(incident.coords.lat),Number(incident.coords.lng)]} icon={smartPortRouteMarker("warning","#ef4444")}><Popup><b>{incident.location || incident.description || "Incidente activo"}</b><br />A {Math.round(incident.distanceMeters)} m de la ruta</Popup></Marker>)}
+            <SmartPortRouteViewport route={selectedRoute} />
+          </MapContainer>
+          <div className="spr-source">Fuente de ruteo: TomTom Routing API con tráfico en vivo. Las señales de Conect Manzanillo se superponen en el cliente para validación operativa. Esta fase no escribe cambios en accesos, terminales, carriles ni reportes.</div>
+        </section>
+
+        <aside className="spr-side">
+          {selectedRoute && <section className="spr-card spr-summary"><h3>{selectedRoute.label}{recommendedRoute?.id === selectedRoute.id && <span className="spr-recommended"><MS name="recommend" size={13} active /> Recomendada</span>}</h3><div className="spr-kpis"><div className="spr-kpi"><span>ETA tráfico</span><strong>{smartPortRouteDuration(selectedRoute.summary?.travelTimeInSeconds)}</strong></div><div className="spr-kpi"><span>Distancia</span><strong>{smartPortRouteDistance(selectedRoute.summary?.lengthInMeters)}</strong></div><div className="spr-kpi"><span>Demora tráfico</span><strong style={{color:smartPortRouteDelayColor(selectedRoute.summary?.trafficDelayInSeconds)}}>+{smartPortRouteDuration(selectedRoute.summary?.trafficDelayInSeconds)}</strong></div><div className="spr-kpi"><span>Sin tráfico</span><strong>{smartPortRouteDuration(selectedRoute.summary?.noTrafficTravelTimeInSeconds ?? Math.max(0,Number(selectedRoute.summary?.travelTimeInSeconds||0)-Number(selectedRoute.summary?.trafficDelayInSeconds||0)))}</strong></div></div></section>}
+
+          <section className="spr-card spr-route-list"><h3>Alternativas y score logístico</h3>{scoredRoutes.map((route,index) => { const color=["#67e8f9","#8b5cf6","#f59e0b"][index%3]; return <button type="button" key={route.id} className={`spr-route-option ${selectedRoute?.id===route.id?"is-active":""}`} onClick={() => setSelectedRouteId(route.id)}><span className="spr-route-line" style={{"--route-color":color}} /><span><strong>{route.label}{recommendedRoute?.id===route.id && <span className="spr-recommended">Recomendada</span>}</strong><small>{smartPortRouteDistance(route.summary?.lengthInMeters)} · +{smartPortRouteDuration(route.summary?.trafficDelayInSeconds)} · {route.nearbySignals.length} señales · {route.nearbyIncidents.length} incidentes</small></span><b>{smartPortRouteDuration(route.summary?.travelTimeInSeconds)}</b></button>;})}</section>
+
+          <section className="spr-card spr-signals"><h3 style={{margin:"0 0 3px",font:"900 11px/1.2 'Space Mono',monospace"}}>Señales sobre la ruta</h3>{selectedRoute?.nearbySignals?.length ? selectedRoute.nearbySignals.map(signal => <div key={signal.id} className="spr-signal"><span><strong>{signal.label}</strong><small>{String(signal.status || "sin datos").replaceAll("_"," ")} · {Math.round(signal.distanceMeters)} m</small></span><b>+{signal.weight}</b></div>) : <div className="spr-empty">Sin estados operativos adversos dentro del corredor seleccionado.</div>}{selectedRoute?.nearbyIncidents?.map((incident,index) => <div key={incident.id || index} className="spr-signal"><span><strong>{incident.location || incident.description || "Incidente activo"}</strong><small>{Math.round(incident.distanceMeters)} m de la ruta</small></span><b>ALERTA</b></div>)}</section>
+        </aside>
+      </div> : !busy && <section className="spr-card spr-empty"><MS name="route" size={34} /><div style={{marginTop:8}}>Selecciona origen, destino y perfil del vehículo para generar la primera comparación TomTom.</div></section>}
+    </div>
+  );
+}
+
+
 function AdminDashboardCard({ id, title, subtitle, icon, open, onToggle, children }) {
   return (
     <section id={`admin-dashboard-${id}`} className={`csp-dashboard-card ${open ? "is-open" : ""}`}>
@@ -38058,6 +38422,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"news", permission:["publicar_comunicados"], title:"Noticias y comunicados", subtitle:"Publicación, propuestas, procesamiento de archivos y limpieza del historial", icon:"newspaper" },
     { id:"feed", permission:["publicar_anuncios"], title:"Anuncios y Banners", subtitle:"Alta, moderación, publicación y métricas centralizadas de anuncios", icon:"campaign" },
     { id:"traffic_monitor", permission:[], adminOnly:true, title:"Monitoreo Tráfico", subtitle:"TomTom en vivo, frescura, decisiones IA y auditoría operativa", icon:"monitor_heart" },
+    { id:"smart_routes", permission:[], adminOnly:true, title:"Rutas Portuarias Inteligentes", subtitle:"TomTom Routing, ETA, alternativas y perfil de tractocamión en laboratorio admin", icon:"route" },
     { id:"traffic", permission:["actualizar_trafico"], title:"Tráfico y vialidades", subtitle:"Estados operativos, votos y rutas fiscales", icon:"radar" },
     { id:"incidents", permission:["moderar_reportes"], title:"Incidentes y reportes", subtitle:"Aprobación, moderación, tipos y lectura asistida", icon:"report_problem" },
     { id:"terminals", permission:["actualizar_terminales","actualizar_patios"], title:"Terminales y patios", subtitle:"Estatus de terminales, patios y rutas fiscales", icon:"warehouse" },
@@ -38338,6 +38703,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 </>}
                 {activeDashboardSection === "feed" && <div style={{display:"grid",gap:"24px"}}><AdminBannerManager /><FeedTab authUser={authUser} isAdmin={isAdmin} subAdmin={subAdmin} adminMode={true} /></div>}
                 {activeDashboardSection === "traffic_monitor" && isAdmin && <AdminTrafficMonitoring isAdmin={isAdmin} authUser={authUser} />}
+                {activeDashboardSection === "smart_routes" && isAdmin && <AdminSmartPortRoutes isAdmin={isAdmin} authUser={authUser} incidents={incidents} />}
                 {activeDashboardSection === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
                 {activeDashboardSection === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
                 {activeDashboardSection === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
