@@ -894,6 +894,21 @@ const GLOBAL_AVATARS_BUCKET = import.meta.env.VITE_SUPABASE_AVATARS_BUCKET || "a
 // Puede sobrescribirse desde VITE_SUPABASE_NOTICIAS_BUCKET si después creas otro bucket.
 const NOTICIAS_STORAGE_BUCKET = import.meta.env.VITE_SUPABASE_NOTICIAS_BUCKET || "comunicados";
 
+// ─── CARTO BASEMAPS ────────────────────────────────────────────────────────
+// La API key se lee de una variable de entorno (nunca hardcodeada en el código).
+// Defínela como VITE_CARTO_API_KEY en tu .env local y en Vercel → Project →
+// Settings → Environment Variables. Si no está definida, los mosaicos se
+// cargan sin la key (Carto puede limitar o bloquear la petición).
+const CARTO_API_KEY = String(import.meta.env.VITE_CARTO_API_KEY || "").trim();
+const CARTO_DARK_TILE_URL_BASE = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const CARTO_LIGHT_TILE_URL_BASE = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+const CARTO_DARK_TILE_URL = CARTO_API_KEY
+  ? `${CARTO_DARK_TILE_URL_BASE}?key=${CARTO_API_KEY}`
+  : CARTO_DARK_TILE_URL_BASE;
+const CARTO_LIGHT_TILE_URL = CARTO_API_KEY
+  ? `${CARTO_LIGHT_TILE_URL_BASE}?key=${CARTO_API_KEY}`
+  : CARTO_LIGHT_TILE_URL_BASE;
+
 
 // ─── VIRUSTOTAL VIA SUPABASE EDGE FUNCTION ──────────────────────────────────
 const VT_EDGE_FUNCTION = "virustotal-scan";
@@ -2520,8 +2535,8 @@ function FiscalZoneMap({ zona, rutas }) {
   const filtered = RUTAS_FISCALES.filter(r => r.zona === zona);
   const filteredRefs = RUTA_FISCAL_REFERENCIAS.filter(r => r.zona === zona);
   const TILE_OPTIONS = [
-    { id: "dark", label: "Oscuro", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
-    { id: "light", label: "Claro", icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
+    { id: "dark", label: "Oscuro", icon: "moon", url: CARTO_DARK_TILE_URL, subdomains: "abcd", labels: null },
+    { id: "light", label: "Claro", icon: "sun", url: CARTO_LIGHT_TILE_URL, subdomains: "abcd", labels: null },
     { id: "streets", label: "Calles", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc", labels: null },
     { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
   ];
@@ -10488,10 +10503,10 @@ function MapaAccesos({ accesos }) {
   const [tileMode, setTileMode] = useState("dark");
 
   const TILE_OPTIONS = [
-    { id: "dark",      label: "Noche",    icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                   subdomains: "abcd", labels: null },
+    { id: "dark",      label: "Noche",    icon: "moon", url: CARTO_DARK_TILE_URL,                                                   subdomains: "abcd", labels: null },
     { id: "streets",   label: "Calles",   icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                              subdomains: "abc",  labels: null },
     { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                   subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
-    { id: "light",     label: "Claro",    icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                  subdomains: "abcd", labels: null },
+    { id: "light",     label: "Claro",    icon: "sun", url: CARTO_LIGHT_TILE_URL,                                                  subdomains: "abcd", labels: null },
   ];
 
   const getColor = (id) => {
@@ -10731,10 +10746,10 @@ function MapaVialidades({ vialidades }) {
   ];
 
   const TILE_OPTIONS = [
-    { id: "dark",      label: "Noche",    icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",                                                                           subdomains: "abcd", labels: null },
+    { id: "dark",      label: "Noche",    icon: "moon", url: CARTO_DARK_TILE_URL,                                                                           subdomains: "abcd", labels: null },
     { id: "streets",   label: "Calles",   icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                                                                                       subdomains: "abc",  labels: null },
     { id: "satellite", label: "Satélite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",                                            subdomains: "",     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
-    { id: "light",     label: "Claro",    icon: "sun", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",                                                                           subdomains: "abcd", labels: null },
+    { id: "light",     label: "Claro",    icon: "sun", url: CARTO_LIGHT_TILE_URL,                                                                           subdomains: "abcd", labels: null },
   ];
 
   const getVialColor = (id) => {
@@ -10869,13 +10884,13 @@ function MapaVialidades({ vialidades }) {
 // ─── MAPA DE TRÁFICO (Leaflet con KML real) ──────────────────────────────────
 const MAP_TILES = [
   { id: "dark",      label: "Nocturno", icon: "moon",
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    url: CARTO_DARK_TILE_URL,
     labels: null },
   { id: "streets",   label: "Calles",   icon: "map",
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     labels: null },
   { id: "light",     label: "Claro",    icon: "sun",
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    url: CARTO_LIGHT_TILE_URL,
     labels: null },
   { id: "satellite", label: "Satélite", icon: "satellite",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -12282,7 +12297,7 @@ function MapaEventos({ incidents }) {
         attributionControl: false,
       });
       tileRef.current = L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        CARTO_DARK_TILE_URL,
         { maxZoom: 19 }
       ).addTo(map);
       leafRef.current = map;
@@ -12330,7 +12345,7 @@ function MapaEventos({ incidents }) {
   useEffect(() => {
     if (!leafRef.current || !tileRef.current) return;
     const urls = {
-      dark:      "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      dark:      CARTO_DARK_TILE_URL,
       streets:   "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     };
@@ -13859,9 +13874,9 @@ const COMMAND_VIALIDAD_LINES = [
 ];
 
 const COMMAND_BASE_LAYERS = [
-  { id:"dark", label:"Nocturno", url:"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains:"abcd" },
+  { id:"dark", label:"Nocturno", url:CARTO_DARK_TILE_URL, subdomains:"abcd" },
   { id:"streets", label:"Calles", url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains:"abc" },
-  { id:"light", label:"Claro", url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", subdomains:"abcd" },
+  { id:"light", label:"Claro", url:CARTO_LIGHT_TILE_URL, subdomains:"abcd" },
   { id:"satellite", label:"Satélite", url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains:"" },
 ];
 
@@ -14451,7 +14466,7 @@ function MapaTerminales({ zona, vista = "terminales", stMap, rutasFiscales, setZ
   const TILE_OPTIONS = [
     { id: "satellite", label: "Satellite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}" },
     { id: "streets", label: "Terrain", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc", labels: null },
-    { id: "dark", label: "Night", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd", labels: null },
+    { id: "dark", label: "Night", icon: "moon", url: CARTO_DARK_TILE_URL, subdomains: "abcd", labels: null },
   ];
 
   const zoneLabel = zona === "norte" ? "Norte" : "Sur";
@@ -30278,7 +30293,7 @@ function PatioIdentificaMap({ myId }) {
   const TILE_OPTIONS = [
     { id: "satellite", label: "Satellite", icon: "satellite", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", subdomains: "", labelsUrl: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", labelsSubdomains: "" },
     { id: "streets", label: "Terrain", icon: "map", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", subdomains: "abc" },
-    { id: "dark", label: "Night", icon: "moon", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", subdomains: "abcd" },
+    { id: "dark", label: "Night", icon: "moon", url: CARTO_DARK_TILE_URL, subdomains: "abcd" },
   ];
 
   useEffect(() => { ensureTerminalesPortuariasPremiumStyle(); }, []);
