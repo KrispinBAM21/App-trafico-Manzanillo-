@@ -38328,7 +38328,17 @@ function CalculadoraRutasManiobras({ authUser = null }) {
     if (selectedRouteId && scoredRoutes.some((r) => r.id === selectedRouteId)) return;
     setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
   }, [scoredRoutes, selectedRouteId, recommendedRoute]);
+  useEffect(() => {
+    setPdfSelectedIds(scoredRoutes.map((r) => r.id));
+  }, [scoredRoutes.map((r) => r.id).join("|")]);
 
+  const togglePdfRoute = (routeId) => {
+    setPdfSelectedIds((prev) =>
+      prev.includes(routeId) ? prev.filter((id) => id !== routeId) : [...prev, routeId]
+    );
+  };
+  const selectAllPdfRoutes = () => setPdfSelectedIds(scoredRoutes.map((r) => r.id));
+  const clearPdfRoutes = () => setPdfSelectedIds([]);
   const calculateCostForRoute = useCallback(
     (route) => {
       const distanceKm = Number(route?.summary?.lengthInMeters || 0) / 1000;
@@ -38877,31 +38887,58 @@ function CalculadoraRutasManiobras({ authUser = null }) {
 
           {scoredRoutes.length > 0 && (
             <section className="drc-card drc-panel">
-              <h3>Rutas y precios por alternativa</h3>
+                      {scoredRoutes.length > 0 && (
+            <section className="drc-card drc-panel">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <h3 style={{ margin: 0 }}>Rutas y precios por alternativa</h3>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button type="button" onClick={selectAllPdfRoutes} style={{ background: "transparent", border: "1px solid rgba(56,189,248,.3)", color: "#8edcff", fontSize: 9, padding: "4px 8px", borderRadius: 8, cursor: "pointer", fontWeight: 900 }}>Todas</button>
+                  <button type="button" onClick={clearPdfRoutes} style={{ background: "transparent", border: "1px solid rgba(148,163,184,.25)", color: "#94a3b8", fontSize: 9, padding: "4px 8px", borderRadius: 8, cursor: "pointer", fontWeight: 900 }}>Ninguna</button>
+                </div>
+              </div>
+              <div className="drc-hint" style={{ marginBottom: 8 }}>
+                Marca las rutas que quieres incluir en el PDF.
+              </div>
+
               {scoredRoutes.map((route, idx) => {
                 const cost = calculateCostForRoute(route);
                 const color = ["#67e8f9", "#8b5cf6", "#f59e0b", "#f472b6", "#34d399"][idx % 5];
+                const checked = pdfSelectedIds.includes(route.id);
+                const isActive = selectedRoute?.id === route.id;
                 return (
-                  <button
-                    type="button"
+                  <div
                     key={route.id}
-                    className={`drc-route-option ${selectedRoute?.id === route.id ? "is-active" : ""}`}
-                    onClick={() => setSelectedRouteId(route.id)}
+                    className={`drc-route-option ${isActive ? "is-active" : ""}`}
+                    style={{ gridTemplateColumns: "auto auto 1fr auto" }}
                   >
-                    <span className="drc-route-line" style={{ "--route-color": color }} />
-                    <span>
-                      <strong>{route.label}{recommendedRoute?.id === route.id && <span className="drc-badge">Rápida</span>}</strong>
-                      <small>
-                        {deliveryRouteDistance(route.summary?.lengthInMeters)} · +{deliveryRouteDuration(route.summary?.trafficDelayInSeconds)} tráfico
-                        <br />Total: <b style={{ color: "#86efac" }}>{formatMXN(cost.total)}</b>
-                      </small>
-                    </span>
-                    <b>{deliveryRouteDuration(route.summary?.travelTimeInSeconds)}</b>
-                  </button>
+                    <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePdfRoute(route.id)}
+                        style={{ width: 18, height: 18, accentColor: "#67e8f9", cursor: "pointer" }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRouteId(route.id)}
+                      style={{ display: "contents", border: 0, background: "transparent", cursor: "pointer", color: "inherit", padding: 0, textAlign: "inherit" }}
+                    >
+                      <span className="drc-route-line" style={{ "--route-color": color }} />
+                      <span>
+                        <strong>{route.label}{recommendedRoute?.id === route.id && <span className="drc-badge">Rápida</span>}</strong>
+                        <small>
+                          {deliveryRouteDistance(route.summary?.lengthInMeters)} · +{deliveryRouteDuration(route.summary?.trafficDelayInSeconds)} tráfico
+                          <br />Total: <b style={{ color: "#86efac" }}>{formatMXN(cost.total)}</b>
+                        </small>
+                      </span>
+                      <b>{deliveryRouteDuration(route.summary?.travelTimeInSeconds)}</b>
+                    </button>
+                  </div>
                 );
               })}
             </section>
-          )}
+          )}  
         </aside>
       </div>
     </div>
@@ -39023,6 +39060,7 @@ function AdminSmartPortRoutes({ isAdmin = false, authUser = null, incidents = []
   const [result, setResult] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const mapWrapRef = useRef(null);
+  const [pdfSelectedIds, setPdfSelectedIds] = useState([]);
   const [accessRows, setAccessRows] = useState({});
   const [terminalRows, setTerminalRows] = useState({});
   const [segundoData, setSegundoData] = useState({});
@@ -39138,10 +39176,10 @@ function AdminSmartPortRoutes({ isAdmin = false, authUser = null, incidents = []
     if (!scoredRoutes.length) return;
     if (selectedRouteId && scoredRoutes.some(route => route.id === selectedRouteId)) return;
     setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
-  }, [scoredRoutes, selectedRouteId, recommendedRoute]);
-  
+    }, [scoredRoutes, selectedRouteId, recommendedRoute]);
   const calculate = async () => {
     if (!isAdmin || busy) return;
+
     setBusy(true);
     setError("");
     setResult(null);
