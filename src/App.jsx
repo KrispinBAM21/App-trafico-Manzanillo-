@@ -38984,8 +38984,8 @@ function CalculadoraRutasManiobras({ authUser = null }) {
     if (origin) return [origin.lat, origin.lng];
     return [19.0528, -104.3157];
   }, [origin, destination]);
-
-  return (
+    
+   return (
     <div className="drc-shell">
       <style>{`
         .drc-shell{font-family:'DM Sans',sans-serif;color:#eaf3ff;display:grid;gap:16px}
