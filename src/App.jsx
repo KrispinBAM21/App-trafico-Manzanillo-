@@ -38887,8 +38887,6 @@ function CalculadoraRutasManiobras({ authUser = null }) {
 
           {scoredRoutes.length > 0 && (
             <section className="drc-card drc-panel">
-                      {scoredRoutes.length > 0 && (
-            <section className="drc-card drc-panel">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
                 <h3 style={{ margin: 0 }}>Rutas y precios por alternativa</h3>
                 <div style={{ display: "flex", gap: 6 }}>
