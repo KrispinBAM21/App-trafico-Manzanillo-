@@ -38149,7 +38149,6 @@ function DeliveryMapFlyTo({ target, disabled }) {
   return null;
 }
 function CalculadoraRutasManiobras({ authUser = null }) {
-  // Origen / destino
   const [originId, setOriginId] = useState("current");
   const [origin, setOrigin] = useState(null);
   const [destination, setDestination] = useState(null);
@@ -38157,17 +38156,14 @@ function CalculadoraRutasManiobras({ authUser = null }) {
   const [locating, setLocating] = useState(false);
   const [pickMode, setPickMode] = useState(false);
 
-  // Buscador
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchTarget, setSearchTarget] = useState("destination");
 
-  // Vehículo
   const [vehicleType, setVehicleType] = useState("car");
   const [maxAlternatives, setMaxAlternatives] = useState(DELIVERY_ROUTE_MAX_ALTERNATIVES);
 
-  // Costos
   const [fuelPrice, setFuelPrice] = useState("24.50");
   const [fuelEfficiency, setFuelEfficiency] = useState("12");
   const [paperSheets, setPaperSheets] = useState("2");
@@ -38177,19 +38173,17 @@ function CalculadoraRutasManiobras({ authUser = null }) {
   const [extraCost, setExtraCost] = useState("0.00");
   const [marginPct, setMarginPct] = useState("15");
 
-  // Estado general
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const mapWrapRef = useRef(null);
-  const [pdfSelectedIds, setPdfSelectedIds] = useState([]);
-  // ── Ubicación GPS ─────────────────────────────────────────────────────
-    const getCurrentLocation = useCallback(async () => {
+
+  const getCurrentLocation = useCallback(async () => {
     if (!navigator?.geolocation) throw new Error("Este dispositivo no permite obtener la ubicación GPS.");
     setLocating(true);
     try {
-            const readOnce = () =>
+      const readOnce = () =>
         new Promise((resolve) => {
           navigator.geolocation.getCurrentPosition(
             (pos) =>
@@ -38203,12 +38197,11 @@ function CalculadoraRutasManiobras({ authUser = null }) {
           );
         });
 
-      // 3 lecturas seguidas y elegimos la de mejor precisión
       const readings = [];
       for (let i = 0; i < 3; i += 1) {
         const r = await readOnce();
         if (r) readings.push(r);
-        if (r && r.accuracy <= 15) break; // ya es muy precisa
+        if (r && r.accuracy <= 15) break;
       }
       if (!readings.length) throw new Error("No fue posible obtener la ubicación actual.");
 
@@ -38228,7 +38221,54 @@ function CalculadoraRutasManiobras({ authUser = null }) {
     }
   }, []);
 
-  // ── Cálculo de rutas ──────────────────────────────────────────────────
+  const searchAddress = useCallback(async (query, target) => {
+    const q = String(query || "").trim();
+    if (!q) return;
+    setSearching(true);
+    setSearchResults([]);
+    setError("");
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { headers: { "Accept-Language": "es" } });
+      if (!res.ok) throw new Error("El buscador de direcciones no respondió.");
+      const data = await res.json();
+      setSearchResults(
+        (data || []).map((item) => ({
+          label: item.display_name,
+          short: item.name || item.display_name.split(",")[0],
+          lat: Number(item.lat),
+          lng: Number(item.lon),
+        }))
+      );
+      setSearchTarget(target);
+      if (!data?.length) setError("No encontramos esa dirección. Intenta con más detalle (calle, número, colonia).");
+    } catch (err) {
+      setError(err?.message || "No se pudo buscar la dirección.");
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const chooseSearchResult = (item) => {
+    if (searchTarget === "origin") {
+      setOrigin({ lat: item.lat, lng: item.lng, label: item.short || item.label });
+      setOriginId("manual");
+    } else {
+      setDestination({ lat: item.lat, lng: item.lng, label: item.short || item.label });
+    }
+    setSearchResults([]);
+    setSearchQuery("");
+  };
+
+  const handleMapPick = (coords) => {
+    setDestination({
+      lat: coords.lat,
+      lng: coords.lng,
+      label: `Punto en mapa (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)})`,
+    });
+    setPickMode(false);
+  };
+
   const calculate = async () => {
     if (busy) return;
     setBusy(true);
@@ -38266,7 +38306,6 @@ function CalculadoraRutasManiobras({ authUser = null }) {
     }
   };
 
-  // ── Datos derivados: rutas + costos ───────────────────────────────────
   const scoredRoutes = useMemo(() => {
     const routes = Array.isArray(result?.routes) ? result.routes : [];
     return routes.map((route) => {
@@ -38288,23 +38327,8 @@ function CalculadoraRutasManiobras({ authUser = null }) {
     if (!scoredRoutes.length) return;
     if (selectedRouteId && scoredRoutes.some((r) => r.id === selectedRouteId)) return;
     setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
-    useEffect(() => {
-    if (!scoredRoutes.length) return;
-    if (selectedRouteId && scoredRoutes.some((r) => r.id === selectedRouteId)) return;
-    setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
   }, [scoredRoutes, selectedRouteId, recommendedRoute]);
 
-  // Cuando cambia el conjunto de rutas, seleccionamos todas por defecto para el PDF
-  useEffect(() => {
-    setPdfSelectedIds(scoredRoutes.map((r) => r.id));
-  }, [scoredRoutes.map((r) => r.id).join("|")]);
-  const togglePdfRoute = (routeId) => {
-    setPdfSelectedIds((prev) =>
-      prev.includes(routeId) ? prev.filter((id) => id !== routeId) : [...prev, routeId]
-    );
-  };
-  const selectAllPdfRoutes = () => setPdfSelectedIds(scoredRoutes.map((r) => r.id));
-  const clearPdfRoutes = () => setPdfSelectedIds([]);
   const calculateCostForRoute = useCallback(
     (route) => {
       const distanceKm = Number(route?.summary?.lengthInMeters || 0) / 1000;
@@ -38340,7 +38364,6 @@ function CalculadoraRutasManiobras({ authUser = null }) {
     return [19.0528, -104.3157];
   }, [origin, destination]);
 
-  // ── Descarga del reporte PDF ──────────────────────────────────────────
   const downloadReport = async () => {
     if (!result || !scoredRoutes.length) return;
     setBusy(true);
@@ -38349,24 +38372,36 @@ function CalculadoraRutasManiobras({ authUser = null }) {
       await drcLoadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
       await drcLoadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
 
+      let logoData = null;
+      try {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = "/logo.png";
+        await new Promise((res) => { img.onload = res; img.onerror = res; });
+        if (img.complete && img.naturalWidth > 0) {
+          const c = document.createElement("canvas");
+          c.width = img.naturalWidth;
+          c.height = img.naturalHeight;
+          c.getContext("2d").drawImage(img, 0, 0);
+          logoData = c.toDataURL("image/png");
+        }
+      } catch (e) { console.warn("No se pudo cargar logo.png", e); }
+
       let mapImgData = null;
       const mapEl = mapWrapRef.current?.querySelector(".leaflet-container") || mapWrapRef.current;
       if (mapEl && window.html2canvas) {
+        await new Promise((r) => setTimeout(r, 250));
         const imgs = mapEl.querySelectorAll("img");
-        await Promise.all(
-          Array.from(imgs).map((img) =>
-            img.complete ? Promise.resolve() : new Promise((r) => { img.onload = r; img.onerror = r; })
-          )
-        );
-        await new Promise((r) => setTimeout(r, 400));
+        await Promise.all(Array.from(imgs).map((img) => img.complete ? Promise.resolve() : new Promise((r) => { img.onload = r; img.onerror = r; })));
+        await new Promise((r) => setTimeout(r, 350));
         const canvas = await window.html2canvas(mapEl, {
           useCORS: true,
-          allowTaint: false,
+          allowTaint: true,
           backgroundColor: "#0b1220",
-          scale: 2,
+          scale: 2.5,
           logging: false,
         });
-        mapImgData = canvas.toDataURL("image/jpeg", 0.9);
+        mapImgData = canvas.toDataURL("image/jpeg", 0.92);
       }
 
       const { jsPDF } = window.jspdf;
@@ -38440,33 +38475,26 @@ function CalculadoraRutasManiobras({ authUser = null }) {
         if (y + imgH > ph - 20) { pdf.addPage(); y = 20; }
         pdf.addImage(mapImgData, "JPEG", margin, y, imgW, imgH);
         y += imgH + 8;
-      } else {
-        pdf.setFont("helvetica", "italic");
-        pdf.setFontSize(9);
-        pdf.setTextColor(120, 130, 140);
-        pdf.text("(Sin imagen de mapa disponible)", margin + 2, y);
-        y += 8;
       }
 
-      if (selectedRoute && selectedCost) {
-        if (y + 60 > ph - 20) { pdf.addPage(); y = 20; }
+      scoredRoutes.forEach((route) => {
+        const cost = calculateCostForRoute(route);
+        if (y + 70 > ph - 20) { pdf.addPage(); y = 20; }
+
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(11);
         pdf.setTextColor(20, 30, 40);
-        pdf.text(`Ruta seleccionada: ${selectedRoute.label}`, margin, y);
+        pdf.text(`${route.label}${recommendedRoute?.id === route.id ? "  (RECOMENDADA)" : ""}`, margin, y);
         y += 3;
-        pdf.setDrawColor(220, 225, 230);
+        pdf.setDrawColor(200, 210, 220);
         pdf.line(margin, y, pw - margin, y);
         y += 6;
 
-        row("Distancia", deliveryRouteDistance(selectedRoute.summary?.lengthInMeters));
-        row("Tiempo estimado", deliveryRouteDuration(selectedRoute.summary?.travelTimeInSeconds));
-        row("Tiempo sin tráfico", deliveryRouteDuration(
-          selectedRoute.summary?.noTrafficTravelTimeInSeconds ??
-            Math.max(0, Number(selectedRoute.summary?.travelTimeInSeconds || 0) - Number(selectedRoute.summary?.trafficDelayInSeconds || 0))
-        ));
-        row("Demora por tráfico", `+${deliveryRouteDuration(selectedRoute.summary?.trafficDelayInSeconds)}`);
-        y += 3;
+        row("Distancia", deliveryRouteDistance(route.summary?.lengthInMeters));
+        row("Tiempo estimado", deliveryRouteDuration(route.summary?.travelTimeInSeconds));
+        row("Tiempo sin tráfico", deliveryRouteDuration(route.summary?.noTrafficTravelTimeInSeconds ?? Math.max(0, Number(route.summary?.travelTimeInSeconds || 0) - Number(route.summary?.trafficDelayInSeconds || 0))));
+        row("Demora por tráfico", `+${deliveryRouteDuration(route.summary?.trafficDelayInSeconds)}`);
+        y += 2;
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(10);
@@ -38488,64 +38516,41 @@ function CalculadoraRutasManiobras({ authUser = null }) {
           y += isTotal ? 7 : 5.5;
         };
 
-        costRow(`Combustible (${formatNumber(selectedCost.liters, 3)} L)`, selectedCost.fuelTotal);
-        costRow("Hojas", selectedCost.paperTotal);
-        costRow("Carpeta / folder", selectedCost.folderTotal);
-        costRow("Otros gastos", selectedCost.extras);
-        costRow("Subtotal", selectedCost.subtotal);
-        costRow(`Margen de utilidad (${formatNumber(marginPct, 0)}%)`, selectedCost.marginValue);
+        costRow(`Combustible (${formatNumber(cost.liters, 3)} L)`, cost.fuelTotal);
+        costRow("Hojas", cost.paperTotal);
+        costRow("Carpeta / folder", cost.folderTotal);
+        costRow("Otros gastos", cost.extras);
+        costRow("Subtotal", cost.subtotal);
+        costRow(`Margen de utilidad (${formatNumber(marginPct, 0)}%)`, cost.marginValue);
         y += 1;
         pdf.setDrawColor(180, 190, 200);
         pdf.line(margin, y, pw - margin, y);
         y += 5;
-        costRow("TOTAL SUGERIDO", selectedCost.total, true);
-      }
-
-      if (scoredRoutes.length > 1) {
-        if (y + 50 > ph - 20) { pdf.addPage(); y = 20; }
-        y += 4;
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(11);
-        pdf.setTextColor(20, 30, 40);
-        pdf.text("Comparativa de rutas alternativas", margin, y);
-        y += 3;
-        pdf.setDrawColor(220, 225, 230);
-        pdf.line(margin, y, pw - margin, y);
+        costRow("TOTAL SUGERIDO", cost.total, true);
         y += 6;
-
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(8);
-        pdf.setTextColor(90, 100, 110);
-        pdf.text("Ruta", margin + 1, y);
-        pdf.text("Distancia", margin + 55, y);
-        pdf.text("Tiempo", margin + 90, y);
-        pdf.text("Tráfico", margin + 120, y);
-        pdf.text("Total", pw - margin - 2, y, { align: "right" });
-        y += 4;
-        pdf.setDrawColor(235, 238, 242);
-        pdf.line(margin, y, pw - margin, y);
-        y += 5;
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(8);
-        scoredRoutes.forEach((route, i) => {
-          if (y + 6 > ph - 20) { pdf.addPage(); y = 20; }
-          const c = calculateCostForRoute(route);
-          pdf.setTextColor(20, 30, 40);
-          pdf.text(String(route.label || `Ruta ${i + 1}`).substring(0, 26), margin + 1, y);
-          pdf.text(deliveryRouteDistance(route.summary?.lengthInMeters), margin + 55, y);
-          pdf.text(deliveryRouteDuration(route.summary?.travelTimeInSeconds), margin + 90, y);
-          pdf.text(`+${deliveryRouteDuration(route.summary?.trafficDelayInSeconds)}`, margin + 120, y);
-          pdf.setFont("helvetica", "bold");
-          pdf.text(formatMXN(c.total), pw - margin - 2, y, { align: "right" });
-          pdf.setFont("helvetica", "normal");
-          y += 5.5;
-        });
-      }
+      });
 
       const pages = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= pages; i++) {
         pdf.setPage(i);
+
+        if (logoData) {
+          try {
+            pdf.setGState(new pdf.GState({ opacity: 0.08 }));
+            const wmSize = 130;
+            pdf.addImage(logoData, "PNG", pw / 2 - wmSize / 2, ph / 2 - wmSize / 2, wmSize, wmSize);
+            pdf.setGState(new pdf.GState({ opacity: 1 }));
+          } catch (e) {}
+        }
+
+        try {
+          pdf.setTextColor(220, 225, 232);
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(38);
+          pdf.text("CONECT MANZANILLO", pw / 2, ph / 2 + 70, { align: "center", angle: 30 });
+          pdf.setTextColor(20, 30, 40);
+        } catch (e) {}
+
         pdf.setDrawColor(220, 225, 230);
         pdf.line(margin, ph - 15, pw - margin, ph - 15);
         pdf.setFont("helvetica", "normal");
@@ -38633,15 +38638,11 @@ function CalculadoraRutasManiobras({ authUser = null }) {
 
       <header className="drc-head">
         <h2>Cotizador de rutas y costos · Entrega de maniobras</h2>
-        <p>
-          Calcula hasta 5 rutas con tráfico en vivo, estima el costo de gasolina y papelería y obtén un precio sugerido
-          por entrega de maniobra. Descarga la cotización en PDF para entregarla a tu cliente.
-        </p>
+        <p>Calcula hasta 5 rutas con tráfico en vivo, estima el costo de gasolina y papelería y obtén un precio sugerido por entrega de maniobra. Descarga la cotización en PDF para entregarla a tu cliente.</p>
       </header>
 
       <section className="drc-card drc-section">
         <h3>1. Origen y destino</h3>
-
         <div className="drc-grid2">
           <div className="drc-field">
             <span>Origen</span>
@@ -38681,8 +38682,7 @@ function CalculadoraRutasManiobras({ authUser = null }) {
                 style={{ minHeight: 42, borderRadius: 10, border: "1px solid rgba(148,163,184,.18)", background: "#08182a", color: "#eaf3ff", padding: "9px 11px", font: "800 12px/1 'DM Sans',sans-serif" }}
               />
               <button type="button" className="drc-btn is-primary" onClick={() => searchAddress(searchQuery, "destination")} disabled={searching}>
-                {searching ? <span className="drc-spin" /> : <MS name="search" size={18} active />}
-                Buscar
+                {searching ? <span className="drc-spin" /> : <MS name="search" size={18} active />} Buscar
               </button>
             </div>
             {searchResults.length > 0 && (
@@ -38696,9 +38696,7 @@ function CalculadoraRutasManiobras({ authUser = null }) {
             )}
           </div>
           <div className="drc-hint" style={{ alignSelf: "end" }}>
-            {pickMode
-              ? "Modo pin activo: toca el mapa en la ubicación exacta del destino."
-              : "Escribe una dirección o activa 'Tocar en el mapa' para marcar el destino manualmente."}
+            {pickMode ? "Modo pin activo: toca el mapa en la ubicación exacta del destino." : "Escribe una dirección o activa 'Tocar en el mapa' para marcar el destino manualmente."}
           </div>
         </div>
       </section>
@@ -38773,8 +38771,7 @@ function CalculadoraRutasManiobras({ authUser = null }) {
       <section className="drc-card drc-section">
         <div className="drc-actions-bottom">
           <div className="drc-hint" style={{ maxWidth: 640 }}>
-            Los tiempos y distancias son calculados por <b style={{ color: "#8edcff" }}>Conect Manzanillo</b>. Los costos
-            de gasolina, papelería y margen son tus tarifas configurables.
+            Los tiempos y distancias son calculados por <b style={{ color: "#8edcff" }}>Conect Manzanillo</b>. Los costos de gasolina, papelería y margen son tus tarifas configurables.
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" className="drc-btn is-primary" onClick={calculate} disabled={busy || locating}>
@@ -38791,19 +38788,8 @@ function CalculadoraRutasManiobras({ authUser = null }) {
       <div className="drc-layout">
         <section className="drc-card">
           <div ref={mapWrapRef} style={{ position: "relative" }}>
-            <MapContainer
-              className="drc-map"
-              center={mapCenter}
-              zoom={13}
-              minZoom={4}
-              maxZoom={19}
-              scrollWheelZoom
-              attributionControl
-            >
-              <TileLayer
-                attribution='&copy; OpenStreetMap contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+            <MapContainer className="drc-map" center={mapCenter} zoom={13} minZoom={4} maxZoom={19} scrollWheelZoom attributionControl>
+              <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <DeliveryMapClickCatcher active={pickMode} onPick={handleMapPick} />
               <DeliveryMapFlyTo target={destination || origin} disabled={Boolean(selectedRoute)} />
 
@@ -38822,25 +38808,17 @@ function CalculadoraRutasManiobras({ authUser = null }) {
                 );
               })}
 
-              {selectedRoute?.sections
-                ?.filter((s) => s.sectionType === "TRAFFIC")
-                .map((section, i) => {
-                  const start = Math.max(0, Number(section.startPointIndex || 0));
-                  const end = Math.min(selectedRoute.points.length - 1, Number(section.endPointIndex || start));
-                  const seg = selectedRoute.points.slice(start, Math.max(start + 2, end + 1));
-                  if (seg.length < 2) return null;
-                  return (
-                    <Polyline
-                      key={`t-${i}`}
-                      positions={seg.map((p) => [p.lat, p.lng])}
-                      pathOptions={{ color: deliveryRouteTrafficColor(section), weight: 10, opacity: 0.82, lineCap: "round" }}
-                    >
-                      <Tooltip sticky>
-                        {section.simpleCategory || "Tráfico"} · {deliveryRouteDuration(section.delayInSeconds || 0)} de demora
-                      </Tooltip>
-                    </Polyline>
-                  );
-                })}
+              {selectedRoute?.sections?.filter((s) => s.sectionType === "TRAFFIC").map((section, i) => {
+                const start = Math.max(0, Number(section.startPointIndex || 0));
+                const end = Math.min(selectedRoute.points.length - 1, Number(section.endPointIndex || start));
+                const seg = selectedRoute.points.slice(start, Math.max(start + 2, end + 1));
+                if (seg.length < 2) return null;
+                return (
+                  <Polyline key={`t-${i}`} positions={seg.map((p) => [p.lat, p.lng])} pathOptions={{ color: deliveryRouteTrafficColor(section), weight: 10, opacity: 0.82, lineCap: "round" }}>
+                    <Tooltip sticky>{section.simpleCategory || "Tráfico"} · {deliveryRouteDuration(section.delayInSeconds || 0)} de demora</Tooltip>
+                  </Polyline>
+                );
+              })}
 
               {origin && (
                 <Marker position={[origin.lat, origin.lng]} icon={deliveryRouteMarker("trip_origin", "#22c55e")}>
@@ -38857,23 +38835,7 @@ function CalculadoraRutasManiobras({ authUser = null }) {
             </MapContainer>
 
             {pickMode && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 12,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  padding: "8px 14px",
-                  borderRadius: 999,
-                  background: "rgba(56,189,248,.18)",
-                  border: "1px solid rgba(56,189,248,.6)",
-                  color: "#bae6fd",
-                  fontSize: 11,
-                  fontWeight: 900,
-                  zIndex: 500,
-                  pointerEvents: "none",
-                }}
-              >
+              <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", padding: "8px 14px", borderRadius: 999, background: "rgba(56,189,248,.18)", border: "1px solid rgba(56,189,248,.6)", color: "#bae6fd", fontSize: 11, fontWeight: 900, zIndex: 500, pointerEvents: "none" }}>
                 Toca el mapa para colocar el pin del destino
               </div>
             )}
@@ -38893,23 +38855,9 @@ function CalculadoraRutasManiobras({ authUser = null }) {
               <div className="drc-kpis">
                 <div className="drc-kpi"><span>Tiempo con tráfico</span><strong>{deliveryRouteDuration(selectedRoute.summary?.travelTimeInSeconds)}</strong></div>
                 <div className="drc-kpi"><span>Distancia</span><strong>{deliveryRouteDistance(selectedRoute.summary?.lengthInMeters)}</strong></div>
-                <div className="drc-kpi">
-                  <span>Demora tráfico</span>
-                  <strong style={{ color: deliveryRouteDelayColor(selectedRoute.summary?.trafficDelayInSeconds) }}>
-                    +{deliveryRouteDuration(selectedRoute.summary?.trafficDelayInSeconds)}
-                  </strong>
-                </div>
-                <div className="drc-kpi">
-                  <span>Sin tráfico</span>
-                  <strong>
-                    {deliveryRouteDuration(
-                      selectedRoute.summary?.noTrafficTravelTimeInSeconds ??
-                        Math.max(0, Number(selectedRoute.summary?.travelTimeInSeconds || 0) - Number(selectedRoute.summary?.trafficDelayInSeconds || 0))
-                    )}
-                  </strong>
-                </div>
+                <div className="drc-kpi"><span>Demora tráfico</span><strong style={{ color: deliveryRouteDelayColor(selectedRoute.summary?.trafficDelayInSeconds) }}>+{deliveryRouteDuration(selectedRoute.summary?.trafficDelayInSeconds)}</strong></div>
+                <div className="drc-kpi"><span>Sin tráfico</span><strong>{deliveryRouteDuration(selectedRoute.summary?.noTrafficTravelTimeInSeconds ?? Math.max(0, Number(selectedRoute.summary?.travelTimeInSeconds || 0) - Number(selectedRoute.summary?.trafficDelayInSeconds || 0)))}</strong></div>
               </div>
-
               <div className="drc-cost-list" style={{ marginTop: 12 }}>
                 <div className="drc-cost-row"><span>Combustible ({formatNumber(selectedCost.liters, 3)} L)</span><b>{formatMXN(selectedCost.fuelTotal)}</b></div>
                 <div className="drc-cost-row"><span>Hojas</span><b>{formatMXN(selectedCost.paperTotal)}</b></div>
@@ -38923,9 +38871,7 @@ function CalculadoraRutasManiobras({ authUser = null }) {
           ) : (
             <section className="drc-card drc-empty">
               <MS name="route" size={34} />
-              <div style={{ marginTop: 8 }}>
-                Configura origen, destino, vehículo y costos. Luego presiona <b>Calcular rutas</b>.
-              </div>
+              <div style={{ marginTop: 8 }}>Configura origen, destino, vehículo y costos. Luego presiona <b>Calcular rutas</b>.</div>
             </section>
           )}
 
