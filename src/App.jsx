@@ -38100,7 +38100,7 @@ const formatMXN = (value) =>
   );
 
 const formatNumber = (value, decimals = 2) =>
-  new Intl.NumberFormat("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(
+    new Intl.NumberFormat("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(
     Number(value) || 0
   );
 
@@ -38183,25 +38183,42 @@ function CalculadoraRutasManiobras({ authUser = null }) {
   const [result, setResult] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const mapWrapRef = useRef(null);
-
+  const [pdfSelectedIds, setPdfSelectedIds] = useState([]);
   // ── Ubicación GPS ─────────────────────────────────────────────────────
-  const getCurrentLocation = useCallback(async () => {
+    const getCurrentLocation = useCallback(async () => {
     if (!navigator?.geolocation) throw new Error("Este dispositivo no permite obtener la ubicación GPS.");
     setLocating(true);
     try {
-      const coords = await new Promise((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(
-          (pos) =>
-            resolve({
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              label: "Mi ubicación actual",
-              accuracy: pos.coords.accuracy,
-            }),
-          (err) => reject(new Error(err?.message || "No fue posible obtener la ubicación actual.")),
-          { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
-        )
-      );
+            const readOnce = () =>
+        new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) =>
+              resolve({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+              }),
+            () => resolve(null),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
+        });
+
+      // 3 lecturas seguidas y elegimos la de mejor precisión
+      const readings = [];
+      for (let i = 0; i < 3; i += 1) {
+        const r = await readOnce();
+        if (r) readings.push(r);
+        if (r && r.accuracy <= 15) break; // ya es muy precisa
+      }
+      if (!readings.length) throw new Error("No fue posible obtener la ubicación actual.");
+
+      const best = readings.reduce((a, b) => (a.accuracy < b.accuracy ? a : b));
+      const coords = {
+        lat: best.lat,
+        lng: best.lng,
+        label: `Mi ubicación (±${Math.round(best.accuracy)} m)`,
+        accuracy: best.accuracy,
+      };
       setCurrentLocation(coords);
       setOrigin(coords);
       setOriginId("current");
@@ -38210,55 +38227,6 @@ function CalculadoraRutasManiobras({ authUser = null }) {
       setLocating(false);
     }
   }, []);
-
-  // ── Buscador de direcciones (Nominatim / OpenStreetMap) ───────────────
-  const searchAddress = useCallback(async (query, target) => {
-    const q = String(query || "").trim();
-    if (!q) return;
-    setSearching(true);
-    setSearchResults([]);
-    setError("");
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(q)}`;
-      const res = await fetch(url, { headers: { "Accept-Language": "es" } });
-      if (!res.ok) throw new Error("El buscador de direcciones no respondió.");
-      const data = await res.json();
-      setSearchResults(
-        (data || []).map((item) => ({
-          label: item.display_name,
-          short: item.name || item.display_name.split(",")[0],
-          lat: Number(item.lat),
-          lng: Number(item.lon),
-        }))
-      );
-      setSearchTarget(target);
-      if (!data?.length) setError("No encontramos esa dirección. Intenta con más detalle (calle, número, colonia).");
-    } catch (err) {
-      setError(err?.message || "No se pudo buscar la dirección.");
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  const chooseSearchResult = (item) => {
-    if (searchTarget === "origin") {
-      setOrigin({ lat: item.lat, lng: item.lng, label: item.short || item.label });
-      setOriginId("manual");
-    } else {
-      setDestination({ lat: item.lat, lng: item.lng, label: item.short || item.label });
-    }
-    setSearchResults([]);
-    setSearchQuery("");
-  };
-
-  const handleMapPick = (coords) => {
-    setDestination({
-      lat: coords.lat,
-      lng: coords.lng,
-      label: `Punto en mapa (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)})`,
-    });
-    setPickMode(false);
-  };
 
   // ── Cálculo de rutas ──────────────────────────────────────────────────
   const calculate = async () => {
@@ -38320,8 +38288,23 @@ function CalculadoraRutasManiobras({ authUser = null }) {
     if (!scoredRoutes.length) return;
     if (selectedRouteId && scoredRoutes.some((r) => r.id === selectedRouteId)) return;
     setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
+    useEffect(() => {
+    if (!scoredRoutes.length) return;
+    if (selectedRouteId && scoredRoutes.some((r) => r.id === selectedRouteId)) return;
+    setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
   }, [scoredRoutes, selectedRouteId, recommendedRoute]);
 
+  // Cuando cambia el conjunto de rutas, seleccionamos todas por defecto para el PDF
+  useEffect(() => {
+    setPdfSelectedIds(scoredRoutes.map((r) => r.id));
+  }, [scoredRoutes.map((r) => r.id).join("|")]);
+  const togglePdfRoute = (routeId) => {
+    setPdfSelectedIds((prev) =>
+      prev.includes(routeId) ? prev.filter((id) => id !== routeId) : [...prev, routeId]
+    );
+  };
+  const selectAllPdfRoutes = () => setPdfSelectedIds(scoredRoutes.map((r) => r.id));
+  const clearPdfRoutes = () => setPdfSelectedIds([]);
   const calculateCostForRoute = useCallback(
     (route) => {
       const distanceKm = Number(route?.summary?.lengthInMeters || 0) / 1000;
@@ -39205,12 +39188,12 @@ function AdminSmartPortRoutes({ isAdmin = false, authUser = null, incidents = []
   const recommendedRoute = useMemo(() => scoredRoutes.length ? [...scoredRoutes].sort((a, b) => a.scoreSeconds - b.scoreSeconds)[0] : null, [scoredRoutes]);
   const selectedRoute = useMemo(() => scoredRoutes.find(route => route.id === selectedRouteId) || recommendedRoute || scoredRoutes[0] || null, [scoredRoutes, selectedRouteId, recommendedRoute]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!scoredRoutes.length) return;
     if (selectedRouteId && scoredRoutes.some(route => route.id === selectedRouteId)) return;
     setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
   }, [scoredRoutes, selectedRouteId, recommendedRoute]);
-
+  
   const calculate = async () => {
     if (!isAdmin || busy) return;
     setBusy(true);
