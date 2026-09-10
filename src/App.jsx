@@ -38178,6 +38178,7 @@ function CalculadoraRutasManiobras({ authUser = null }) {
   const [result, setResult] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const mapWrapRef = useRef(null);
+  const [pdfSelectedIds, setPdfSelectedIds] = useState([]);
 
   const getCurrentLocation = useCallback(async () => {
     if (!navigator?.geolocation) throw new Error("Este dispositivo no permite obtener la ubicación GPS.");
@@ -39058,7 +39059,6 @@ function AdminSmartPortRoutes({ isAdmin = false, authUser = null, incidents = []
   const [result, setResult] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const mapWrapRef = useRef(null);
-  const [pdfSelectedIds, setPdfSelectedIds] = useState([]);
   const [accessRows, setAccessRows] = useState({});
   const [terminalRows, setTerminalRows] = useState({});
   const [segundoData, setSegundoData] = useState({});
