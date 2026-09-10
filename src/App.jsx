@@ -38125,7 +38125,29 @@ function DeliveryMapClickCatcher({ active, onPick }) {
   });
   return null;
 }
+// Carga perezosa de librerías externas (jsPDF + html2canvas)
+const drcLoadScript = (src) =>
+  new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("No se pudo cargar: " + src));
+    document.head.appendChild(s);
+  });
 
+// Vuela el mapa suavemente cuando se elige un origen/destino sin ruta activa
+function DeliveryMapFlyTo({ target, disabled }) {
+  const map = useMap();
+  useEffect(() => {
+    if (disabled || !target?.lat || !target?.lng) return;
+    try {
+      map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 15), { duration: 0.9 });
+    } catch {}
+  }, [map, target?.lat, target?.lng, disabled]);
+  return null;
+}
 function CalculadoraRutasManiobras({ authUser = null }) {
   // Origen / destino
   const [originId, setOriginId] = useState("current"); // "current" | "manual"
@@ -38599,7 +38621,7 @@ function CalculadoraRutasManiobras({ authUser = null }) {
             </div>
           </label>
           <label className="drc-field"><span>Costo carpeta (MXN)</span>
-            <input type="number" min="0" step="0.01" value={folderCost} onChange={(e) => setFolderCost(e.target.value)} disabled={!useFolder} />
+  <input type="number" min="0" step="0.01" value={folderCost} onChange={(e) => setFolderCost(e.target.value)} />
           </label>
         </div>
         <label className="drc-field" style={{ maxWidth: 240 }}>
@@ -38611,8 +38633,8 @@ function CalculadoraRutasManiobras({ authUser = null }) {
       <section className="drc-card drc-section">
         <div className="drc-actions-bottom">
           <div className="drc-hint" style={{ maxWidth: 640 }}>
-            Los tiempos y distancias provienen de TomTom con tráfico en vivo. Los costos de gasolina, papelería y margen
-            son tus tarifas configurables.
+  Los tiempos y distancias son calculados por <b style={{ color: "#8edcff" }}>Conect Manzanillo</b>.
+  Los costos de gasolina, papelería y margen son tus tarifas configurables.
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" className="drc-btn is-primary" onClick={calculate} disabled={busy || locating}>
@@ -38696,8 +38718,8 @@ function CalculadoraRutasManiobras({ authUser = null }) {
               <DeliveryRouteViewport route={selectedRoute} />
             </MapContainer>
             <div className="drc-source">
-              Ruteo: TomTom Routing API con tráfico en vivo · Geocodificación: OpenStreetMap / Nominatim · Mapa: Leaflet + OSM.
-            </div>
+  Cálculo de rutas, tiempos y costos: <b style={{ color: "#8edcff" }}>Conect Manzanillo</b> · Cartografía: OpenStreetMap.
+</div>
           </section>
 
           <aside className="drc-side">
