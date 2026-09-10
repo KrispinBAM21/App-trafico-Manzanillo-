@@ -38038,7 +38038,747 @@ function AdminTrafficMonitoring({ isAdmin = false, authUser = null }) {
     </div>
   );
 }
+// ─── CALCULADORA DE RUTAS Y COSTOS DE ENTREGA DE MANIOBRAS ──────────────
+const DELIVERY_ROUTE_FUNCTION = "tomtom-port-route";
+const DELIVERY_ROUTE_MAX_ALTERNATIVES = 4; // + principal = 5 rutas
 
+const deliveryRouteMeters = (a, b) => {
+  if (!a || !b) return Infinity;
+  const lat1 = (Number(a.lat) * Math.PI) / 180;
+  const lat2 = (Number(b.lat) * Math.PI) / 180;
+  const dLat = ((Number(b.lat) - Number(a.lat)) * Math.PI) / 180;
+  const dLng = ((Number(b.lng) - Number(a.lng)) * Math.PI) / 180;
+  if (![lat1, lat2, dLat, dLng].every(Number.isFinite)) return Infinity;
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLng / 2);
+  const h = s1 * s1 + Math.cos(lat1) * Math.cos(lat2) * s2 * s2;
+  return 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+
+const deliveryRouteDuration = (seconds) => {
+  const total = Math.max(0, Math.round(Number(seconds || 0) / 60));
+  if (total < 60) return `${total} min`;
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  return `${hours} h ${minutes ? `${minutes} min` : ""}`.trim();
+};
+
+const deliveryRouteDistance = (meters) => {
+  const value = Math.max(0, Number(meters || 0));
+  return value >= 1000 ? `${(value / 1000).toFixed(2)} km` : `${Math.round(value)} m`;
+};
+
+const deliveryRouteDelayColor = (seconds) => {
+  const m = Math.max(0, Number(seconds || 0) / 60);
+  if (m >= 15) return "#ef4444";
+  if (m >= 8) return "#f97316";
+  if (m >= 3) return "#fbbf24";
+  return "#22c55e";
+};
+
+const deliveryRouteTrafficColor = (section) => {
+  const mag = Number(section?.magnitudeOfDelay);
+  const delay = Number(section?.delayInSeconds || 0);
+  if (mag >= 4 || delay >= 600) return "#ef4444";
+  if (mag >= 3 || delay >= 300) return "#f97316";
+  if (mag >= 2 || delay >= 120) return "#fbbf24";
+  return "#22c55e";
+};
+
+const deliveryRouteMarker = (icon, color) =>
+  L.divIcon({
+    className: "cm-delivery-marker-host",
+    html: `<span class="cm-delivery-marker" style="--drm-color:${String(color || "#38bdf8")}"><span class="material-symbols-outlined">${String(icon || "location_on")}</span></span>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 30],
+    popupAnchor: [0, -28],
+  });
+
+const formatMXN = (value) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 }).format(
+    Number.isFinite(Number(value)) ? Number(value) : 0
+  );
+
+const formatNumber = (value, decimals = 2) =>
+  new Intl.NumberFormat("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(
+    Number(value) || 0
+  );
+
+// Vuela el mapa a la ruta seleccionada
+function DeliveryRouteViewport({ route }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!route?.points?.length) return;
+    const bounds = L.latLngBounds(route.points.map((p) => [p.lat, p.lng]));
+    if (bounds.isValid()) map.fitBounds(bounds.pad(0.16), { maxZoom: 17, animate: true });
+  }, [map, route?.id, route?.points]);
+  return null;
+}
+
+// Permite poner el pin de destino tocando el mapa (modo "elegir en mapa")
+function DeliveryMapClickCatcher({ active, onPick }) {
+  useMapEvents({
+    click(e) {
+      if (!active) return;
+      onPick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+}
+
+function CalculadoraRutasManiobras({ authUser = null }) {
+  // Origen / destino
+  const [originId, setOriginId] = useState("current"); // "current" | "manual"
+  const [origin, setOrigin] = useState(null); // { lat, lng, label }
+  const [destination, setDestination] = useState(null); // { lat, lng, label }
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [pickMode, setPickMode] = useState(false);
+
+  // Buscador
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchTarget, setSearchTarget] = useState("destination"); // "origin" | "destination"
+
+  // Vehículo
+  const [vehicleType, setVehicleType] = useState("car"); // "car" | "motorcycle"
+  const [maxAlternatives, setMaxAlternatives] = useState(DELIVERY_ROUTE_MAX_ALTERNATIVES);
+
+  // Costos
+  const [fuelPrice, setFuelPrice] = useState("24.50"); // MXN / L
+  const [fuelEfficiency, setFuelEfficiency] = useState("12"); // km / L
+  const [paperSheets, setPaperSheets] = useState("2"); // hojas por entrega
+  const [paperCost, setPaperCost] = useState("1.00"); // costo por hoja MXN
+  const [useFolder, setUseFolder] = useState(false);
+  const [folderCost, setFolderCost] = useState("8.00");
+  const [extraCost, setExtraCost] = useState("0.00");
+  const [marginPct, setMarginPct] = useState("15");
+
+  // Estado general
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+  const [selectedRouteId, setSelectedRouteId] = useState("");
+
+  // ── Ubicación GPS ─────────────────────────────────────────────────────
+  const getCurrentLocation = useCallback(async () => {
+    if (!navigator?.geolocation) throw new Error("Este dispositivo no permite obtener la ubicación GPS.");
+    setLocating(true);
+    try {
+      const coords = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(
+          (pos) =>
+            resolve({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              label: "Mi ubicación actual",
+              accuracy: pos.coords.accuracy,
+            }),
+          (err) => reject(new Error(err?.message || "No fue posible obtener la ubicación actual.")),
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
+        )
+      );
+      setCurrentLocation(coords);
+      setOrigin(coords);
+      setOriginId("current");
+      return coords;
+    } finally {
+      setLocating(false);
+    }
+  }, []);
+
+  // ── Buscador de direcciones (Nominatim / OpenStreetMap) ───────────────
+  const searchAddress = useCallback(async (query, target) => {
+    const q = String(query || "").trim();
+    if (!q) return;
+    setSearching(true);
+    setSearchResults([]);
+    setError("");
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { headers: { "Accept-Language": "es" } });
+      if (!res.ok) throw new Error("El buscador de direcciones no respondió.");
+      const data = await res.json();
+      setSearchResults(
+        (data || []).map((item) => ({
+          label: item.display_name,
+          short: item.name || item.display_name.split(",")[0],
+          lat: Number(item.lat),
+          lng: Number(item.lon),
+        }))
+      );
+      setSearchTarget(target);
+      if (!data?.length) setError("No encontramos esa dirección. Intenta con más detalle (calle, número, colonia).");
+    } catch (err) {
+      setError(err?.message || "No se pudo buscar la dirección.");
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const chooseSearchResult = (item) => {
+    if (searchTarget === "origin") {
+      setOrigin({ lat: item.lat, lng: item.lng, label: item.short || item.label });
+      setOriginId("manual");
+    } else {
+      setDestination({ lat: item.lat, lng: item.lng, label: item.short || item.label });
+    }
+    setSearchResults([]);
+    setSearchQuery("");
+  };
+
+  const handleMapPick = (coords) => {
+    setDestination({
+      lat: coords.lat,
+      lng: coords.lng,
+      label: `Punto en mapa (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)})`,
+    });
+    setPickMode(false);
+  };
+
+  // ── Cálculo de rutas ──────────────────────────────────────────────────
+  const calculate = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try {
+      let originPoint = origin;
+      if (originId === "current") {
+        if (currentLocation) originPoint = currentLocation;
+        else originPoint = await getCurrentLocation();
+      }
+      if (!originPoint || !destination) {
+        throw new Error("Selecciona origen y destino antes de calcular.");
+      }
+      if (deliveryRouteMeters(originPoint, destination) < 30) {
+        throw new Error("El origen y el destino son demasiado cercanos.");
+      }
+
+      const body = {
+        trigger: "delivery_route",
+        origin: { lat: Number(originPoint.lat), lng: Number(originPoint.lng), label: originPoint.label || "Origen" },
+        destination: { lat: Number(destination.lat), lng: Number(destination.lng), label: destination.label || "Destino" },
+        travelMode: vehicleType === "motorcycle" ? "motorcycle" : "car",
+        maxAlternatives: Math.min(4, Math.max(0, Number(maxAlternatives) || 0)),
+        vehicle: {},
+      };
+      const invoke = await sb.functions.invoke(DELIVERY_ROUTE_FUNCTION, { body });
+      if (invoke.error) throw invoke.error;
+      if (!invoke.data?.ok) throw new Error(invoke.data?.error || "TomTom no pudo calcular la ruta.");
+      setResult(invoke.data);
+    } catch (err) {
+      setError(err?.message || "No fue posible calcular las rutas.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ── Datos derivados: rutas + costos ───────────────────────────────────
+  const scoredRoutes = useMemo(() => {
+    const routes = Array.isArray(result?.routes) ? result.routes : [];
+    return routes.map((route) => {
+      const duration = Number(route?.summary?.travelTimeInSeconds || 0);
+      const delay = Number(route?.summary?.trafficDelayInSeconds || 0);
+      return { ...route, scoreSeconds: duration };
+    });
+  }, [result]);
+
+  const recommendedRoute = useMemo(
+    () => (scoredRoutes.length ? [...scoredRoutes].sort((a, b) => a.scoreSeconds - b.scoreSeconds)[0] : null),
+    [scoredRoutes]
+  );
+  const selectedRoute = useMemo(
+    () => scoredRoutes.find((r) => r.id === selectedRouteId) || recommendedRoute || scoredRoutes[0] || null,
+    [scoredRoutes, selectedRouteId, recommendedRoute]
+  );
+
+  useEffect(() => {
+    if (!scoredRoutes.length) return;
+    if (selectedRouteId && scoredRoutes.some((r) => r.id === selectedRouteId)) return;
+    setSelectedRouteId((recommendedRoute || scoredRoutes[0]).id);
+  }, [scoredRoutes, selectedRouteId, recommendedRoute]);
+
+  // Cálculo de costos por ruta (función pura)
+  const calculateCostForRoute = useCallback(
+    (route) => {
+      const distanceKm = Number(route?.summary?.lengthInMeters || 0) / 1000;
+      const efficiency = Math.max(0.1, Number(fuelEfficiency) || 0);
+      const price = Math.max(0, Number(fuelPrice) || 0);
+      const liters = distanceKm / efficiency;
+      const fuelTotal = liters * price;
+
+      const sheets = Math.max(0, Number(paperSheets) || 0);
+      const perSheet = Math.max(0, Number(paperCost) || 0);
+      const paperTotal = sheets * perSheet;
+
+      const folderTotal = useFolder ? Math.max(0, Number(folderCost) || 0) : 0;
+      const extras = Math.max(0, Number(extraCost) || 0);
+
+      const subtotal = fuelTotal + paperTotal + folderTotal + extras;
+      const marginValue = subtotal * (Math.max(0, Number(marginPct) || 0) / 100);
+      const total = subtotal + marginValue;
+
+      return { distanceKm, liters, fuelTotal, paperTotal, folderTotal, extras, subtotal, marginValue, total };
+    },
+    [fuelEfficiency, fuelPrice, paperSheets, paperCost, useFolder, folderCost, extraCost, marginPct]
+  );
+
+  const selectedCost = useMemo(
+    () => (selectedRoute ? calculateCostForRoute(selectedRoute) : null),
+    [selectedRoute, calculateCostForRoute]
+  );
+
+  // ── Descarga del reporte ──────────────────────────────────────────────
+  const downloadReport = () => {
+    if (!result || !scoredRoutes.length) return;
+    const L = [];
+    const sep = "=".repeat(72);
+    L.push(sep);
+    L.push("  REPORTE DE RUTAS Y COSTOS DE ENTREGA DE MANIOBRAS");
+    L.push(sep);
+    L.push(`Fecha de emisión: ${new Date().toLocaleString("es-MX")}`);
+    L.push(`Vehículo:          ${vehicleType === "motorcycle" ? "Motocicleta" : "Automóvil"}`);
+    L.push(`Precio gasolina:   ${formatMXN(fuelPrice)} por litro`);
+    L.push(`Rendimiento:       ${formatNumber(fuelEfficiency, 2)} km/L`);
+    L.push(`Hojas por entrega: ${paperSheets} (a ${formatMXN(paperCost)} c/u)`);
+    L.push(`Carpeta / folder:  ${useFolder ? `Sí (${formatMXN(folderCost)})` : "No"}`);
+    L.push(`Otros gastos:      ${formatMXN(extraCost)}`);
+    L.push(`Margen de utilidad: ${formatNumber(marginPct, 2)}%`);
+    L.push("");
+    L.push("ORIGEN:");
+    L.push(`  ${result.origin?.label || "Origen"}  [${result.origin?.lat}, ${result.origin?.lng}]`);
+    L.push("DESTINO:");
+    L.push(`  ${result.destination?.label || "Destino"}  [${result.destination?.lat}, ${result.destination?.lng}]`);
+    L.push("");
+
+    scoredRoutes.forEach((route, idx) => {
+      const c = calculateCostForRoute(route);
+      L.push("-".repeat(72));
+      L.push(`RUTA ${idx + 1}: ${route.label || `Alternativa ${idx + 1}`}${recommendedRoute?.id === route.id ? "  [RECOMENDADA]" : ""}`);
+      L.push("-".repeat(72));
+      L.push(`  Distancia:              ${deliveryRouteDistance(route.summary?.lengthInMeters)}`);
+      L.push(`  Tiempo con tráfico:     ${deliveryRouteDuration(route.summary?.travelTimeInSeconds)}`);
+      L.push(`  Demora por tráfico:     +${deliveryRouteDuration(route.summary?.trafficDelayInSeconds)}`);
+      L.push(
+        `  Tiempo sin tráfico:     ${deliveryRouteDuration(
+          route.summary?.noTrafficTravelTimeInSeconds ??
+            Math.max(0, Number(route.summary?.travelTimeInSeconds || 0) - Number(route.summary?.trafficDelayInSeconds || 0))
+        )}`
+      );
+      L.push("");
+      L.push("  DESGLOSE DE COSTOS:");
+      L.push(`    Combustible:          ${formatMXN(c.fuelTotal)}   (${formatNumber(c.liters, 3)} L)`);
+      L.push(`    Hojas:                ${formatMXN(c.paperTotal)}`);
+      L.push(`    Carpeta / folder:     ${formatMXN(c.folderTotal)}`);
+      L.push(`    Otros gastos:         ${formatMXN(c.extras)}`);
+      L.push(`    Subtotal:             ${formatMXN(c.subtotal)}`);
+      L.push(`    Margen (${formatNumber(marginPct, 2)}%):       ${formatMXN(c.marginValue)}`);
+      L.push(`    TOTAL SUGERIDO:       ${formatMXN(c.total)}`);
+      L.push("");
+    });
+
+    L.push(sep);
+    L.push("Generado automáticamente · Los tiempos y distancias provienen de TomTom");
+    L.push("con tráfico en vivo. Los costos son estimaciones configurables.");
+    L.push(sep);
+
+    const blob = new Blob([L.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rutas-maniobras-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // ── Mapa: centro por defecto (Manzanillo, Colima) ─────────────────────
+  const mapCenter = useMemo(() => {
+    if (destination) return [destination.lat, destination.lng];
+    if (origin) return [origin.lat, origin.lng];
+    return [19.0528, -104.3157];
+  }, [origin, destination]);
+
+  return (
+    <div className="drc-shell">
+      <style>{`
+        .drc-shell{font-family:'DM Sans',sans-serif;color:#eaf3ff;display:grid;gap:16px}
+        .drc-shell *{box-sizing:border-box}
+        .drc-head h2{margin:7px 0 5px;font:900 clamp(20px,3vw,28px)/1.08 'Space Mono',monospace}
+        .drc-head p{margin:0;max-width:820px;color:#91a4bd;font-size:12px;line-height:1.55}
+        .drc-card{border:1px solid rgba(148,163,184,.16);border-radius:17px;background:linear-gradient(160deg,rgba(13,27,48,.88),rgba(6,16,31,.94));box-shadow:0 20px 54px rgba(0,0,0,.22);overflow:hidden}
+        .drc-section{padding:15px;display:grid;gap:13px}
+        .drc-section h3{margin:0;font:900 12px/1.3 'Space Mono',monospace;color:#8edcff;text-transform:uppercase;letter-spacing:.08em}
+        .drc-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+        .drc-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+        .drc-grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+        .drc-field{display:grid;gap:6px}
+        .drc-field span{font-size:9px;color:#8195ad;text-transform:uppercase;font-weight:900;letter-spacing:.07em}
+        .drc-field input,.drc-field select{width:100%;min-height:42px;border:1px solid rgba(148,163,184,.18);border-radius:10px;background:#08182a;color:#eaf3ff;padding:9px 10px;font:800 12px/1 'DM Sans',sans-serif;outline:none}
+        .drc-field input:focus,.drc-field select:focus{border-color:rgba(56,189,248,.6);box-shadow:0 0 0 3px rgba(56,189,248,.08)}
+        .drc-toggle{display:flex;gap:8px;flex-wrap:wrap}
+        .drc-toggle button{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid rgba(148,163,184,.16);background:rgba(2,8,23,.32);color:#8195ad;font:900 11px/1 'DM Sans',sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+        .drc-toggle button.is-active{border-color:rgba(56,189,248,.45);background:rgba(56,189,248,.12);color:#8edcff}
+        .drc-btn{min-height:42px;padding:0 16px;border-radius:10px;border:1px solid rgba(56,189,248,.28);background:rgba(56,189,248,.08);color:#9edfff;display:inline-flex;align-items:center;justify-content:center;gap:8px;font:900 11px/1 'DM Sans',sans-serif;cursor:pointer}
+        .drc-btn.is-primary{background:linear-gradient(135deg,#18c7ba,#0c8cba);border-color:#54e7dc;color:#031719}
+        .drc-btn.is-ghost{background:rgba(255,255,255,.03);border-color:rgba(148,163,184,.2);color:#dbeafe}
+        .drc-btn:disabled{opacity:.48;cursor:wait}
+        .drc-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+        .drc-search-row input{min-height:42px}
+        .drc-results{display:grid;gap:6px;margin-top:4px;max-height:220px;overflow-y:auto;padding-right:2px}
+        .drc-result{text-align:left;padding:9px 11px;border-radius:10px;border:1px solid rgba(148,163,184,.12);background:rgba(2,8,23,.35);color:#dbeafe;font-size:11px;cursor:pointer;line-height:1.4}
+        .drc-result:hover{border-color:rgba(56,189,248,.45);background:rgba(56,189,248,.08)}
+        .drc-hint{font-size:10px;color:#7f93aa;line-height:1.5}
+        .drc-error{padding:11px 12px;border-radius:10px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#fca5a5;font-size:11px;font-weight:800}
+        .drc-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(340px,.75fr);gap:16px;align-items:start}
+        .drc-map{height:560px;width:100%;background:#06111f;border-radius:17px;overflow:hidden}
+        .drc-map .leaflet-tile-pane{filter:invert(.9) hue-rotate(178deg) brightness(.62) saturate(.72) contrast(1.12)}
+        .drc-map .leaflet-control-zoom a{background:rgba(5,16,30,.92)!important;color:#dcecff!important;border-color:rgba(148,163,184,.18)!important}
+        .cm-delivery-marker-host{background:transparent!important;border:0!important}
+        .cm-delivery-marker{width:34px;height:34px;display:grid;place-items:center;border-radius:999px;background:rgba(3,10,20,.94);border:2px solid var(--drm-color);color:var(--drm-color);box-shadow:0 0 0 3px rgba(3,10,20,.82),0 0 18px var(--drm-color)}
+        .cm-delivery-marker .material-symbols-outlined{font-size:18px;line-height:1}
+        .drc-side{display:grid;gap:12px}
+        .drc-panel{padding:14px}
+        .drc-panel h3{margin:0 0 11px;font:900 12px/1.3 'Space Mono',monospace}
+        .drc-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+        .drc-kpi{padding:11px;border-radius:11px;border:1px solid rgba(148,163,184,.11);background:rgba(2,8,23,.34)}
+        .drc-kpi span{display:block;color:#7e92aa;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}
+        .drc-kpi strong{display:block;margin-top:6px;font:900 17px/1 'Space Mono',monospace}
+        .drc-route-option{width:100%;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:11px 0;border:0;border-top:1px solid rgba(148,163,184,.1);background:transparent;color:#dce8f6;text-align:left;cursor:pointer}
+        .drc-route-option:first-of-type{border-top:0}
+        .drc-route-line{width:5px;height:42px;border-radius:99px;background:var(--route-color)}
+        .drc-route-option strong{display:block;font-size:11px}
+        .drc-route-option small{display:block;margin-top:3px;color:#7f93aa;font-size:9px;line-height:1.5}
+        .drc-route-option b{font:900 12px/1 'Space Mono',monospace;color:#86efac}
+        .drc-route-option.is-active{background:rgba(56,189,248,.05)}
+        .drc-badge{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:3px 6px;border-radius:999px;background:rgba(34,197,94,.12);color:#86efac;font-size:7px;font-weight:900}
+        .drc-cost-list{display:grid;gap:6px;margin-top:6px}
+        .drc-cost-row{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#c5d3e4;padding:6px 0;border-bottom:1px dashed rgba(148,163,184,.12)}
+        .drc-cost-row b{font:900 12px/1 'Space Mono',monospace;color:#dbeafe}
+        .drc-cost-row.is-total{border-bottom:0;margin-top:4px;padding-top:9px;border-top:1px solid rgba(56,189,248,.35)}
+        .drc-cost-row.is-total b{font-size:15px;color:#54e7dc}
+        .drc-empty{padding:24px;color:#71859d;text-align:center;font-size:11px}
+        .drc-actions-bottom{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+        .drc-source{padding:9px 12px;border-top:1px solid rgba(148,163,184,.09);color:#647991;font-size:9px;line-height:1.5}
+        .drc-spin{width:14px;height:14px;border:2px solid rgba(142,220,255,.25);border-top-color:#8edcff;border-radius:999px;animation:drcSpin .8s linear infinite}
+        @keyframes drcSpin{to{transform:rotate(360deg)}}
+        @media(max-width:980px){.drc-layout{grid-template-columns:1fr}.drc-map{height:460px}.drc-grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:640px){.drc-grid2,.drc-grid3,.drc-grid4{grid-template-columns:1fr}.drc-map{height:400px}}
+      `}</style>
+
+      <header className="drc-head">
+        <h2>Cotizador de rutas y costos · Entrega de maniobras</h2>
+        <p>
+          Calcula hasta 5 rutas con tráfico en vivo, estima el costo de gasolina y papelería y obtén un precio sugerido
+          por entrega de maniobra. Descarga el reporte completo para entregarlo a tu cliente.
+        </p>
+      </header>
+
+      <section className="drc-card drc-section">
+        <h3>1. Origen y destino</h3>
+
+        <div className="drc-grid2">
+          <div className="drc-field">
+            <span>Origen</span>
+            <div className="drc-toggle">
+              <button type="button" className={originId === "current" ? "is-active" : ""} onClick={getCurrentLocation} disabled={locating}>
+                <MS name="my_location" size={16} active /> {locating ? "Obteniendo GPS…" : "Mi ubicación"}
+              </button>
+              <button type="button" className={originId === "manual" ? "is-active" : ""} onClick={() => setOriginId("manual")}>
+                <MS name="edit_location_alt" size={16} active /> Dirección
+              </button>
+            </div>
+            {origin && <div className="drc-hint">Origen: <b style={{ color: "#dbeafe" }}>{origin.label}</b></div>}
+          </div>
+          <div className="drc-field">
+            <span>Destino</span>
+            <div className="drc-toggle">
+              <button type="button" className={!pickMode ? "is-active" : ""} onClick={() => setPickMode(false)}>
+                <MS name="search" size={16} active /> Buscar dirección
+              </button>
+              <button type="button" className={pickMode ? "is-active" : ""} onClick={() => setPickMode(true)}>
+                <MS name="add_location_alt" size={16} active /> Tocar en el mapa
+              </button>
+            </div>
+            {destination && <div className="drc-hint">Destino: <b style={{ color: "#dbeafe" }}>{destination.label}</b></div>}
+          </div>
+        </div>
+
+        <div className="drc-grid2">
+          <div>
+            <div className="drc-search-row">
+              <input
+                type="text"
+                placeholder="Ej. Av. Niños Héroes 100, Manzanillo, Colima"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchAddress(searchQuery, "destination"); } }}
+                style={{ minHeight: 42, borderRadius: 10, border: "1px solid rgba(148,163,184,.18)", background: "#08182a", color: "#eaf3ff", padding: "9px 11px", font: "800 12px/1 'DM Sans',sans-serif" }}
+              />
+              <button type="button" className="drc-btn is-primary" onClick={() => searchAddress(searchQuery, "destination")} disabled={searching}>
+                {searching ? <span className="drc-spin" /> : <MS name="search" size={18} active />}
+                Buscar
+              </button>
+            </div>
+            {searchResults.length > 0 && (
+              <div className="drc-results">
+                {searchResults.map((r, i) => (
+                  <button type="button" key={i} className="drc-result" onClick={() => chooseSearchResult(r)}>
+                    <b>{r.short}</b><br /><span style={{ color: "#7f93aa" }}>{r.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="drc-hint" style={{ alignSelf: "end" }}>
+            {pickMode
+              ? "Modo pin activo: toca el mapa en la ubicación exacta del destino."
+              : "Escribe una dirección o activa 'Tocar en el mapa' para marcar el destino manualmente."}
+          </div>
+        </div>
+      </section>
+
+      <section className="drc-card drc-section">
+        <h3>2. Vehículo y gasolina</h3>
+        <div className="drc-grid2">
+          <div className="drc-field">
+            <span>Tipo de vehículo</span>
+            <div className="drc-toggle">
+              <button type="button" className={vehicleType === "car" ? "is-active" : ""} onClick={() => { setVehicleType("car"); setFuelEfficiency("12"); }}>
+                <MS name="directions_car" size={16} active /> Automóvil
+              </button>
+              <button type="button" className={vehicleType === "motorcycle" ? "is-active" : ""} onClick={() => { setVehicleType("motorcycle"); setFuelEfficiency("35"); }}>
+                <MS name="two_wheeler" size={16} active /> Motocicleta
+              </button>
+            </div>
+          </div>
+          <div className="drc-field">
+            <span>Alternativas</span>
+            <select value={maxAlternatives} onChange={(e) => setMaxAlternatives(Number(e.target.value))}>
+              <option value={0}>Solo la ruta principal</option>
+              <option value={1}>1 alternativa</option>
+              <option value={2}>2 alternativas</option>
+              <option value={3}>3 alternativas</option>
+              <option value={4}>4 alternativas (máx. 5 rutas)</option>
+            </select>
+          </div>
+        </div>
+        <div className="drc-grid3">
+          <label className="drc-field"><span>Precio gasolina (MXN / L)</span>
+            <input type="number" min="0" step="0.01" value={fuelPrice} onChange={(e) => setFuelPrice(e.target.value)} />
+          </label>
+          <label className="drc-field"><span>Rendimiento (km / L)</span>
+            <input type="number" min="0.1" step="0.1" value={fuelEfficiency} onChange={(e) => setFuelEfficiency(e.target.value)} />
+          </label>
+          <label className="drc-field"><span>Otros gastos (MXN)</span>
+            <input type="number" min="0" step="0.01" value={extraCost} onChange={(e) => setExtraCost(e.target.value)} />
+          </label>
+        </div>
+      </section>
+
+      <section className="drc-card drc-section">
+        <h3>3. Papelería y margen</h3>
+        <div className="drc-grid4">
+          <label className="drc-field"><span>Hojas por entrega</span>
+            <input type="number" min="0" step="1" value={paperSheets} onChange={(e) => setPaperSheets(e.target.value)} />
+          </label>
+          <label className="drc-field"><span>Costo por hoja (MXN)</span>
+            <input type="number" min="0" step="0.01" value={paperCost} onChange={(e) => setPaperCost(e.target.value)} />
+          </label>
+          <label className="drc-field"><span>Carpeta / folder</span>
+            <div className="drc-toggle">
+              <button type="button" className={!useFolder ? "is-active" : ""} onClick={() => setUseFolder(false)}>
+                <MS name="close" size={14} active /> No
+              </button>
+              <button type="button" className={useFolder ? "is-active" : ""} onClick={() => setUseFolder(true)}>
+                <MS name="folder" size={14} active /> Sí
+              </button>
+            </div>
+          </label>
+          <label className="drc-field"><span>Costo carpeta (MXN)</span>
+            <input type="number" min="0" step="0.01" value={folderCost} onChange={(e) => setFolderCost(e.target.value)} disabled={!useFolder} />
+          </label>
+        </div>
+        <label className="drc-field" style={{ maxWidth: 240 }}>
+          <span>Margen de utilidad (%)</span>
+          <input type="number" min="0" step="1" value={marginPct} onChange={(e) => setMarginPct(e.target.value)} />
+        </label>
+      </section>
+
+      <section className="drc-card drc-section">
+        <div className="drc-actions-bottom">
+          <div className="drc-hint" style={{ maxWidth: 640 }}>
+            Los tiempos y distancias provienen de TomTom con tráfico en vivo. Los costos de gasolina, papelería y margen
+            son tus tarifas configurables.
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button type="button" className="drc-btn is-primary" onClick={calculate} disabled={busy || locating}>
+              {busy ? <><span className="drc-spin" /> Calculando…</> : <><MS name="route" size={18} active /> Calcular rutas</>}
+            </button>
+            <button type="button" className="drc-btn is-ghost" onClick={downloadReport} disabled={!scoredRoutes.length}>
+              <MS name="download" size={18} active /> Descargar reporte
+            </button>
+          </div>
+        </div>
+        {error && <div className="drc-error">{error}</div>}
+      </section>
+
+      {scoredRoutes.length > 0 ? (
+        <div className="drc-layout">
+          <section className="drc-card">
+            <MapContainer
+              className="drc-map"
+              center={mapCenter}
+              zoom={13}
+              minZoom={4}
+              maxZoom={19}
+              scrollWheelZoom
+              attributionControl
+            >
+              <TileLayer
+                attribution='&copy; OpenStreetMap contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <DeliveryMapClickCatcher active={pickMode} onPick={handleMapPick} />
+
+              {/* Rutas */}
+              {scoredRoutes.map((route, index) => {
+                const active = selectedRoute?.id === route.id;
+                const color = active ? "#67e8f9" : ["#8b5cf6", "#f59e0b", "#94a3b8", "#f472b6", "#34d399"][index % 5];
+                return (
+                  <Polyline
+                    key={route.id}
+                    positions={route.points.map((p) => [p.lat, p.lng])}
+                    pathOptions={{ color, weight: active ? 7 : 4, opacity: active ? 0.92 : 0.42, lineCap: "round", lineJoin: "round" }}
+                    eventHandlers={{ click: () => setSelectedRouteId(route.id) }}
+                  >
+                    <Tooltip sticky>{route.label} · {deliveryRouteDuration(route.summary?.travelTimeInSeconds)}</Tooltip>
+                  </Polyline>
+                );
+              })}
+
+              {/* Tráfico sobre la ruta seleccionada */}
+              {selectedRoute?.sections
+                ?.filter((s) => s.sectionType === "TRAFFIC")
+                .map((section, i) => {
+                  const start = Math.max(0, Number(section.startPointIndex || 0));
+                  const end = Math.min(selectedRoute.points.length - 1, Number(section.endPointIndex || start));
+                  const seg = selectedRoute.points.slice(start, Math.max(start + 2, end + 1));
+                  if (seg.length < 2) return null;
+                  return (
+                    <Polyline
+                      key={`t-${i}`}
+                      positions={seg.map((p) => [p.lat, p.lng])}
+                      pathOptions={{ color: deliveryRouteTrafficColor(section), weight: 10, opacity: 0.82, lineCap: "round" }}
+                    >
+                      <Tooltip sticky>
+                        {section.simpleCategory || "Tráfico"} · {deliveryRouteDuration(section.delayInSeconds || 0)} de demora
+                      </Tooltip>
+                    </Polyline>
+                  );
+                })}
+
+              {/* Marcadores */}
+              {origin && (
+                <Marker position={[origin.lat, origin.lng]} icon={deliveryRouteMarker("trip_origin", "#22c55e")}>
+                  <Popup><b>Origen</b><br />{origin.label}</Popup>
+                </Marker>
+              )}
+              {destination && (
+                <Marker position={[destination.lat, destination.lng]} icon={deliveryRouteMarker("flag", "#38bdf8")}>
+                  <Popup><b>Destino</b><br />{destination.label}</Popup>
+                </Marker>
+              )}
+
+              <DeliveryRouteViewport route={selectedRoute} />
+            </MapContainer>
+            <div className="drc-source">
+              Ruteo: TomTom Routing API con tráfico en vivo · Geocodificación: OpenStreetMap / Nominatim · Mapa: Leaflet + OSM.
+            </div>
+          </section>
+
+          <aside className="drc-side">
+            {selectedRoute && selectedCost && (
+              <section className="drc-card drc-panel">
+                <h3>
+                  {selectedRoute.label}
+                  {recommendedRoute?.id === selectedRoute.id && <span className="drc-badge">RÁPIDA</span>}
+                </h3>
+                <div className="drc-kpis">
+                  <div className="drc-kpi"><span>Tiempo con tráfico</span><strong>{deliveryRouteDuration(selectedRoute.summary?.travelTimeInSeconds)}</strong></div>
+                  <div className="drc-kpi"><span>Distancia</span><strong>{deliveryRouteDistance(selectedRoute.summary?.lengthInMeters)}</strong></div>
+                  <div className="drc-kpi">
+                    <span>Demora tráfico</span>
+                    <strong style={{ color: deliveryRouteDelayColor(selectedRoute.summary?.trafficDelayInSeconds) }}>
+                      +{deliveryRouteDuration(selectedRoute.summary?.trafficDelayInSeconds)}
+                    </strong>
+                  </div>
+                  <div className="drc-kpi">
+                    <span>Sin tráfico</span>
+                    <strong>
+                      {deliveryRouteDuration(
+                        selectedRoute.summary?.noTrafficTravelTimeInSeconds ??
+                          Math.max(0, Number(selectedRoute.summary?.travelTimeInSeconds || 0) - Number(selectedRoute.summary?.trafficDelayInSeconds || 0))
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="drc-cost-list" style={{ marginTop: 12 }}>
+                  <div className="drc-cost-row"><span>Combustible ({formatNumber(selectedCost.liters, 3)} L)</span><b>{formatMXN(selectedCost.fuelTotal)}</b></div>
+                  <div className="drc-cost-row"><span>Hojas</span><b>{formatMXN(selectedCost.paperTotal)}</b></div>
+                  <div className="drc-cost-row"><span>Carpeta / folder</span><b>{formatMXN(selectedCost.folderTotal)}</b></div>
+                  <div className="drc-cost-row"><span>Otros gastos</span><b>{formatMXN(selectedCost.extras)}</b></div>
+                  <div className="drc-cost-row"><span>Subtotal</span><b>{formatMXN(selectedCost.subtotal)}</b></div>
+                  <div className="drc-cost-row"><span>Margen ({formatNumber(marginPct, 0)}%)</span><b>{formatMXN(selectedCost.marginValue)}</b></div>
+                  <div className="drc-cost-row is-total"><span>Total sugerido</span><b>{formatMXN(selectedCost.total)}</b></div>
+                </div>
+              </section>
+            )}
+
+            <section className="drc-card drc-panel">
+              <h3>Rutas y precios por alternativa</h3>
+              {scoredRoutes.map((route, idx) => {
+                const cost = calculateCostForRoute(route);
+                const color = ["#67e8f9", "#8b5cf6", "#f59e0b", "#f472b6", "#34d399"][idx % 5];
+                return (
+                  <button
+                    type="button"
+                    key={route.id}
+                    className={`drc-route-option ${selectedRoute?.id === route.id ? "is-active" : ""}`}
+                    onClick={() => setSelectedRouteId(route.id)}
+                  >
+                    <span className="drc-route-line" style={{ "--route-color": color }} />
+                    <span>
+                      <strong>{route.label}{recommendedRoute?.id === route.id && <span className="drc-badge">Rápida</span>}</strong>
+                      <small>
+                        {deliveryRouteDistance(route.summary?.lengthInMeters)} · +{deliveryRouteDuration(route.summary?.trafficDelayInSeconds)} tráfico
+                        <br />Total: <b style={{ color: "#86efac" }}>{formatMXN(cost.total)}</b>
+                      </small>
+                    </span>
+                    <b>{deliveryRouteDuration(route.summary?.travelTimeInSeconds)}</b>
+                  </button>
+                );
+              })}
+            </section>
+          </aside>
+        </div>
+      ) : (
+        !busy && (
+          <section className="drc-card drc-empty">
+            <MS name="route" size={34} />
+            <div style={{ marginTop: 8 }}>
+              Configura origen, destino, vehículo y costos para generar la comparación de rutas y precios.
+            </div>
+          </section>
+        )
+      )}
+    </div>
+  );
+}
 // ─── ADMIN: RUTAS PORTUARIAS INTELIGENTES ───────────────────────────────────
 const SMART_PORT_ROUTE_FUNCTION = "tomtom-port-route";
 const SMART_PORT_ROUTE_SIGNAL_RADIUS_M = 350;
