@@ -39188,6 +39188,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
     { id:"security", permission:["ver_alertas_seguridad"], title:"Alertas de seguridad", subtitle:"Intentos bloqueados por VirusTotal, revisión y seguimiento", icon:"security" },
     { id:"records", permission:["gestionar_registros"], title:"Registros y moderación", subtitle:"Auditoría, mensajes, bloqueos y revocación de votos", icon:"rule_folder" },
     { id:"services", permission:["gestionar_servicios","rol_servicios_admin","editor_servicios"], title:"Servicios", subtitle:"KPIs, tarifas y actividad de Comida y Maniobras", icon:"design_services" },
+    { id:"delivery_routes", permission:[], adminOnly:true, title:"Cotizador de Entregas", subtitle:"Rutas con costo de gasolina, papelería y precio por maniobra", icon:"local_shipping" },
     { id:"tools", permission:["herramientas_admin"], title:"Herramientas administrativas", subtitle:"Conversión de documentos y configuración global", icon:"construction" },
   ];
   const cards = allCards.filter(card => (!card.adminOnly || isAdmin) && hasPermission(...card.permission));
@@ -39459,6 +39460,7 @@ function AdminDashboard({ myId, incidents, setIncidents, setActiveTab, authUser,
                 {activeDashboardSection === "feed" && <div style={{display:"grid",gap:"24px"}}><AdminBannerManager /><FeedTab authUser={authUser} isAdmin={isAdmin} subAdmin={subAdmin} adminMode={true} /></div>}
                 {activeDashboardSection === "traffic_monitor" && isAdmin && <AdminTrafficMonitoring isAdmin={isAdmin} authUser={authUser} />}
                 {activeDashboardSection === "smart_routes" && isAdmin && <AdminSmartPortRoutes isAdmin={isAdmin} authUser={authUser} incidents={incidents} />}
+                {activeDashboardSection === "delivery_routes" && <CalculadoraRutasManiobras authUser={authUser} />}
                 {activeDashboardSection === "traffic" && <TraficoTab myId={myId} incidents={incidents} setIncidents={setIncidents} isAdmin={true} />}
                 {activeDashboardSection === "incidents" && <ReporteTab myId={myId} incidents={incidents} setIncidents={setIncidents} setActiveTab={setActiveTab} isAdmin={true} />}
                 {activeDashboardSection === "terminals" && <TerminalesPatiosTab myId={myId} isAdmin={true} />}
